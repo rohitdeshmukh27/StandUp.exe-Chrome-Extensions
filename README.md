@@ -5,35 +5,41 @@ A modern, health-focused Chrome extension that transforms your new tab into a co
 ## ✨ Features
 
 ### 🕒 Real-Time Dashboard
+
 - **Animated Clock**: Beautiful, smooth-updating time display with millisecond precision
 - **Local Time Zone**: Automatic detection and display of your local time
 - **Date Information**: Current date with elegant formatting
 
 ### 📊 Year Progress Tracker
+
 - **Days Remaining**: Real-time countdown of days left in the current year
 - **Progress Percentage**: Visual representation of year completion
 - **Motivational Context**: Helps maintain perspective on time and goals
 
 ### 🏃‍♂️ Health & Wellness Reminders
+
 - **Smart Break Timer**: Configurable reminders (default: every 45 minutes)
 - **Health Tips**: Rotating wellness advice and tips
 - **Break Management**: "I'm Back" button to reset timers after breaks
 - **Promotes Healthy Habits**: Encourages regular movement, hydration, and rest
 
 ### 🔗 Customizable Shortcuts
+
 - **Quick Access**: Fast navigation to frequently used websites
 - **Import/Export**: Backup and restore your shortcuts
 - **Visual Management**: Easy-to-use interface for organizing links
-- **Keyboard Shortcuts**: 
+- **Keyboard Shortcuts**:
   - `Ctrl+Shift+I` to import shortcuts
   - `Ctrl+Shift+E` to export shortcuts
 
 ### 💡 Daily Motivation
+
 - **Motivational Quotes**: Inspiring messages in the popup
 - **Refresh on Demand**: Get new quotes whenever you need inspiration
 - **Personalized Greetings**: Time-appropriate welcomes (Good morning, afternoon, evening)
 
 ### 🎨 Modern Design
+
 - **Animated Background**: Subtle floating elements for visual appeal
 - **Responsive Layout**: Adapts to different screen sizes
 - **Clean Interface**: Minimalist design focused on productivity
@@ -42,9 +48,11 @@ A modern, health-focused Chrome extension that transforms your new tab into a co
 ## 🚀 Installation
 
 ### From Chrome Web Store
-*Coming soon - extension will be published to Chrome Web Store*
+
+_Coming soon - extension will be published to Chrome Web Store_
 
 ### Manual Installation (Developer Mode)
+
 1. Download or clone this repository
 2. Open Chrome and go to `chrome://extensions/`
 3. Enable "Developer mode" in the top right
@@ -54,17 +62,20 @@ A modern, health-focused Chrome extension that transforms your new tab into a co
 ## 🛠️ Usage
 
 ### Setting Up Health Reminders
+
 1. The health reminder starts automatically when you open a new tab
 2. Default reminder interval is 45 minutes
 3. When it's time for a break, you'll see the reminder prominently displayed
 4. Click "I'm Back" when you return from your break
 
 ### Managing Shortcuts
+
 1. **Import Shortcuts**: Click the import button or use `Ctrl+Shift+I`
 2. **Export Shortcuts**: Click the export button or use `Ctrl+Shift+E`
 3. **Add Custom Links**: Use the shortcuts interface to add your frequently visited sites
 
 ### Getting Daily Motivation
+
 1. Click the extension icon in your browser toolbar
 2. Read your daily motivational quote
 3. Click "New Quote" for fresh inspiration
@@ -72,6 +83,7 @@ A modern, health-focused Chrome extension that transforms your new tab into a co
 ## 🔧 Configuration
 
 The extension stores all settings locally using Chrome's storage API:
+
 - Health reminder intervals
 - Custom shortcuts
 - User preferences
@@ -95,6 +107,7 @@ We welcome contributions! Here's how you can help:
 5. **Open** a Pull Request
 
 ### Development Setup
+
 ```bash
 git clone https://github.com/rohitdeshmukh27/StandUp.exe-Chrome-Extensions.git
 cd StandUp.exe-Chrome-Extensions
@@ -144,3 +157,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Stay productive, stay healthy! ??**
 
 *If you find this extension helpful, please consider giving it a ? star on GitHub!*
+```

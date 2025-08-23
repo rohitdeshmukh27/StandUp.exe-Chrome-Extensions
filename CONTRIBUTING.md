@@ -33,16 +33,19 @@ Thank you for your interest in contributing to the Personal Productivity Assista
 ## Types of Contributions
 
 ### 🐛 Bug Fixes
+
 - Check the [Issues](https://github.com/rohitdeshmukh27/StandUp.exe-Chrome-Extensions/issues) page for known bugs
 - Create a new issue if you find an unreported bug
 - Include steps to reproduce the issue
 
 ### ✨ New Features
+
 - Discuss major features in an issue first
 - Keep changes focused and atomic
 - Update documentation as needed
 
 ### 📝 Documentation
+
 - Fix typos or unclear explanations
 - Add examples or better descriptions
 - Improve code comments
@@ -74,6 +77,7 @@ Thank you for your interest in contributing to the Personal Productivity Assista
 ## Questions?
 
 Feel free to open an issue for:
+
 - Questions about the codebase
 - Suggestions for improvements
 - Discussion about potential features
