@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Productivity Dashboard</title>
+    <link rel="stylesheet" href="newtab-styles.css" />
+  </head>
+  <body>
+    <div class="dashboard-container">
+      <!-- Background Elements -->
+      <div class="bg-animation">
+        <div class="floating-circle circle-1"></div>
+        <div class="floating-circle circle-2"></div>
+        <div class="floating-circle circle-3"></div>
+      </div>
+      <!-- Main Header -->
+      <header class="main-header">
+        <div class="current-status">
+          <span id="greeting-text">Good morning!</span>
+          <span id="motivation-text">Let's make today productive</span>
+        </div>
+      </header>
+
+      <!-- Main Content Grid -->
+      <main class="dashboard-container-new">
+        <!-- Top Row -->
+        <div class="top-row">
+          <!-- Time Widget -->
+          <section class="widget time-widget-new">
+            <div class="widget-header">
+              <h2>TIME</h2>
+            </div>
+            <div class="time-display-large">
+              <div id="large-time" class="large-time-text">--:--:--</div>
+              <div id="large-date" class="large-date-text">Loading...</div>
+              <div class="timezone-info">
+                <span id="timezone">Your Local Time</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Days Remaining Widget -->
+          <section class="widget days-remaining-widget">
+            <div class="widget-header">
+              <h2>DAYS REMAINING FOR 2025</h2>
+            </div>
+            <div class="days-content">
+              <div id="days-remaining" class="days-number">--</div>
+              <div class="days-text">Days Left</div>
+              <div id="percentage-year" class="percentage-text">
+                --% completed
+              </div>
+            </div>
+          </section>
+
+          <!-- Health Reminder Widget -->
+          <section class="widget health-reminder-widget">
+            <div class="widget-header">
+              <h2>HEALTH REMINDER</h2>
+            </div>
+            <div class="health-reminder-content">
+              <div class="reminder-status">
+                <div id="reminder-timer" class="timer-display">45:00</div>
+                <div class="timer-label">Next break in</div>
+              </div>
+              <div class="health-tips">
+                <span id="health-tip-text"
+                  >Stay active! Regular movement boosts productivity and
+                  health</span
+                >
+              </div>
+              <div class="rest-actions" id="rest-actions" style="display: none;">
+                <button id="im-back-btn" class="im-back-button">
+                  I'm Back
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Bottom Row - Shortcuts -->
+        <div class="bottom-row">
+          <section class="widget shortcuts-widget-new">
+            <div class="widget-header">
+              <h2>SHORTCUTS</h2>
+              <div class="shortcuts-controls">
+                <span
+                  id="shortcuts-status"
+                  class="status-indicator"
+                  title="Shortcuts status"
+                ></span>
+                <button
+                  id="import-shortcuts"
+                  class="control-btn"
+                  title="Import shortcuts (Ctrl+Shift+I)"
+                >
+                  <svg
+                    class="icon-import"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7,10 12,15 17,10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                </button>
+                <button
+                  id="export-shortcuts"
+                  class="control-btn"
+                  title="Export shortcuts (Ctrl+Shift+E)"
+                >
+                  <svg
+                    class="icon-export"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17,8 12,3 7,8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </button>
+                <button id="edit-shortcuts" class="edit-btn">
+                  <svg
+                    class="icon-add"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  ADD
+                </button>
+              </div>
+            </div>
+            <div class="shortcuts-grid-new" id="shortcuts-container">
+              <!-- Shortcuts will be added dynamically -->
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Break Reminder Modal -->
+    <div id="break-reminder-modal" class="modal-overlay hidden">
+      <div class="modal-content-large break-modal">
+        <div class="break-icon">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="m22 22-5-5" />
+            <path d="m17 22 5-5" />
+          </svg>
+        </div>
+        <h3>Time for a Health Break!</h3>
+        <p>
+          You've been sitting for more than 45 minutes.<br />
+          Please take a 2-3 minute walk to stay healthy and productive.
+        </p>
+        <div class="break-timer">
+          <div id="break-countdown">2:00</div>
+          <div class="break-timer-label">Recommended break time</div>
+        </div>
+        <div class="modal-buttons">
+          <button id="start-break" class="primary-btn">Start Break</button>
+          <button id="skip-break" class="secondary-btn">
+            Skip (Not Recommended)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Shortcut Modal -->
+    <div id="shortcut-modal-large" class="modal-overlay hidden">
+      <div class="modal-content-large">
+        <h3>ADD SHORTCUT</h3>
+        <div class="modal-form">
+          <input
+            type="text"
+            id="shortcut-name-large"
+            placeholder="Shortcut Name (e.g., Google Tasks)"
+            maxlength="30"
+          />
+          <input
+            type="url"
+            id="shortcut-url-large"
+            placeholder="https://example.com"
+          />
+          <div class="modal-buttons">
+            <button id="save-shortcut-large" class="primary-btn">SAVE</button>
+            <button id="cancel-shortcut-large" class="secondary-btn">
+              CANCEL
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shortcut Context Menu -->
+    <div id="shortcut-context-menu" class="context-menu hidden">
+      <div class="context-menu-item" id="rename-shortcut">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+          />
+          <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+        Rename
+      </div>
+      <div class="context-menu-item" id="edit-url-shortcut">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+          />
+          <path
+            d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+          />
+        </svg>
+        Edit URL
+      </div>
+      <div class="context-menu-separator"></div>
+      <div class="context-menu-item delete-item" id="delete-shortcut">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="3,6 5,6 21,6" />
+          <path
+            d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"
+          />
+        </svg>
+        Delete
+      </div>
+    </div>
+
+    <!-- Edit Shortcut Modal -->
+    <div id="edit-shortcut-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 id="edit-modal-title">Edit Shortcut</h3>
+
+        <div class="input-group">
+          <label class="input-label">Shortcut Name</label>
+          <input
+            type="text"
+            id="edit-shortcut-name"
+            placeholder="Enter a friendly name..."
+            maxlength="30"
+          />
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Website URL</label>
+          <input
+            type="url"
+            id="edit-shortcut-url"
+            placeholder="https://example.com"
+          />
+        </div>
+
+        <div class="modal-buttons">
+          <button id="save-edited-shortcut" class="primary-btn">
+            Save Changes
+          </button>
+          <button id="cancel-edit-shortcut" class="secondary-btn">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="newtab.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Chrome Extension",
+      "type": "shell",
+      "command": "echo",
+      "args": [
+        "Chrome Extension is ready! Load it in Chrome by going to chrome://extensions/, enabling Developer mode, and clicking 'Load unpacked'"
+      ],
+      "group": "build",
+      "isBackground": false,
+      "problemMatcher": []
+    }
+  ]
+}
