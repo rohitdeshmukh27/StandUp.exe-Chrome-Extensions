@@ -3,7 +3,7 @@
   "name": "Personal Productivity Assistant",
   "version": "1.0.0",
   "description": "A productivity extension with local time, shortcuts, and working mode with reminders",
-  "permissions": ["storage", "notifications", "alarms", "activeTab"],
+  "permissions": ["storage", "notifications", "alarms", "activeTab", "tts"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"

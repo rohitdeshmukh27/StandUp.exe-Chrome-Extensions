@@ -154,7 +154,7 @@ class ProductivityDashboard {
       sittingDuration: 45 * 60 * 1000, // 45 minutes in milliseconds
       breakDuration: 2 * 60 * 1000, // 2 minutes in milliseconds
       restDuration: 5 * 60 * 1000, // 5 minutes rest before next session
-      currentPhase: 'sitting', // 'sitting', 'break', 'rest'
+      currentPhase: "sitting", // 'sitting', 'break', 'rest'
       tabBlinkInterval: null,
       originalTitle: document.title,
     };
@@ -293,11 +293,19 @@ class ProductivityDashboard {
   async initializeHealthReminder() {
     try {
       console.log("Initializing Health Reminder System...");
-      
+
+      // Clear any old storage data that might conflict
+      await chrome.storage.local.remove([
+        "globalTimerState",
+        "globalStartTime",
+        "timerPhase",
+        "phaseStartTime",
+      ]);
+
       // Get or create session data
-      const result = await chrome.storage.local.get(['healthSession']);
+      const result = await chrome.storage.local.get(["healthSession"]);
       const now = Date.now();
-      
+
       if (!result.healthSession) {
         // Start new session
         await this.startNewHealthSession();
@@ -305,7 +313,7 @@ class ProductivityDashboard {
         // Resume existing session
         await this.resumeHealthSession(result.healthSession);
       }
-      
+
       // Start the main timer loop
       this.startHealthTimer();
       console.log("Health Reminder System initialized successfully");
@@ -320,40 +328,51 @@ class ProductivityDashboard {
   async startNewHealthSession() {
     const now = Date.now();
     const session = {
-      phase: 'sitting',
+      phase: "sitting",
       phaseStartTime: now,
-      sessionStartTime: now
+      sessionStartTime: now,
     };
-    
+
     await chrome.storage.local.set({ healthSession: session });
-    this.healthReminder.currentPhase = 'sitting';
+    this.healthReminder.currentPhase = "sitting";
     this.healthReminder.sessionStartTime = now;
-    
-    console.log("New health session started - 45 minute sitting timer begins");
+
+    console.log("NEW SESSION STARTED - 45 minute sitting timer begins");
+    console.log(
+      `DEBUG - New session time: ${now}, Phase: ${this.healthReminder.currentPhase}`
+    );
+    console.log(
+      `DEBUG - Sitting duration: ${this.healthReminder.sittingDuration}ms (${
+        this.healthReminder.sittingDuration / 60000
+      } minutes)`
+    );
+
+    // Force immediate display update with new session time
+    this.updateHealthDisplay();
   }
 
   async resumeHealthSession(session) {
     const now = Date.now();
     this.healthReminder.currentPhase = session.phase;
     this.healthReminder.sessionStartTime = session.phaseStartTime;
-    
+
     console.log(`Resuming health session - Phase: ${session.phase}`);
-    
+
     // Check if we need to advance to next phase
     const elapsed = now - session.phaseStartTime;
-    
+
     switch (session.phase) {
-      case 'sitting':
+      case "sitting":
         if (elapsed >= this.healthReminder.sittingDuration) {
           await this.triggerBreakTime();
         }
         break;
-      case 'break':
+      case "break":
         if (elapsed >= this.healthReminder.breakDuration) {
           await this.startRestPhase();
         }
         break;
-      case 'rest':
+      case "rest":
         if (elapsed >= this.healthReminder.restDuration) {
           await this.startNewHealthSession();
         }
@@ -366,12 +385,26 @@ class ProductivityDashboard {
     if (this.healthReminder.timer) {
       clearInterval(this.healthReminder.timer);
     }
-    
+
+    // Clear any old timers that might still be running
+    if (this.healthReminder.sittingTimer) {
+      clearInterval(this.healthReminder.sittingTimer);
+      this.healthReminder.sittingTimer = null;
+    }
+    if (this.healthReminder.breakTimer) {
+      clearInterval(this.healthReminder.breakTimer);
+      this.healthReminder.breakTimer = null;
+    }
+    if (this.healthReminder.syncInterval) {
+      clearInterval(this.healthReminder.syncInterval);
+      this.healthReminder.syncInterval = null;
+    }
+
     // Start main timer that updates every second
     this.healthReminder.timer = setInterval(() => {
       this.updateHealthDisplay();
     }, 1000);
-    
+
     // Initial update
     this.updateHealthDisplay();
   }
@@ -379,67 +412,91 @@ class ProductivityDashboard {
   async updateHealthDisplay() {
     const now = Date.now();
     const elapsed = now - this.healthReminder.sessionStartTime;
-    
+
     switch (this.healthReminder.currentPhase) {
-      case 'sitting':
+      case "sitting":
         await this.updateSittingDisplay(elapsed);
         break;
-      case 'break':
+      case "break":
         await this.updateBreakDisplay(elapsed);
         break;
-      case 'rest':
+      case "rest":
         await this.updateRestDisplay(elapsed);
         break;
     }
   }
 
   async updateSittingDisplay(elapsed) {
-    const remaining = Math.max(0, this.healthReminder.sittingDuration - elapsed);
-    
+    const remaining = Math.max(
+      0,
+      this.healthReminder.sittingDuration - elapsed
+    );
+
+    console.log(
+      `DEBUG - Sitting: elapsed=${Math.floor(
+        elapsed / 1000
+      )}s, remaining=${Math.floor(remaining / 1000)}s, sessionStart=${
+        this.healthReminder.sessionStartTime
+      }`
+    );
+
     if (remaining === 0) {
       // Time for break!
       await this.triggerBreakTime();
       return;
     }
-    
+
     const minutes = Math.floor(remaining / 60000);
     const seconds = Math.floor((remaining % 60000) / 1000);
-    const timeString = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-    
+    const timeString = `${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
+
     // Update display
     this.setTimerDisplay(timeString, "#ffffff");
-    this.setHealthTip("Stay active! Regular movement boosts productivity and health");
+    this.setHealthTip(
+      "Stay active! Regular movement boosts productivity and health"
+    );
     this.hideRestActions();
   }
 
   async updateBreakDisplay(elapsed) {
     const remaining = Math.max(0, this.healthReminder.breakDuration - elapsed);
-    
+
     if (remaining === 0) {
       // Break finished, start rest phase
       await this.startRestPhase();
       return;
     }
-    
+
     const minutes = Math.floor(remaining / 60000);
     const seconds = Math.floor((remaining % 60000) / 1000);
     const timeString = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-    
+
     // Update display
     this.setTimerDisplay(`BREAK ${timeString}`, "#ffffff");
-    this.setHealthTip("Great! Take this time to walk, stretch, or step outside");
+    this.setHealthTip(
+      "Great! Take this time to walk, stretch, or step outside"
+    );
     this.hideRestActions();
   }
 
   async updateRestDisplay(elapsed) {
     const remaining = Math.max(0, this.healthReminder.restDuration - elapsed);
-    
+
+    console.log(
+      `DEBUG - Rest: elapsed=${Math.floor(
+        elapsed / 1000
+      )}s, remaining=${Math.floor(remaining / 1000)}s`
+    );
+
     if (remaining === 0) {
       // Rest finished, start new sitting session
+      console.log("REST PERIOD FINISHED - Starting new session...");
       await this.startNewHealthSession();
       return;
     }
-    
+
     // Update display
     this.setTimerDisplay("REST", "#2196F3");
     this.setHealthTip("Well done! Next sitting timer starts in 5 minutes");
@@ -448,66 +505,66 @@ class ProductivityDashboard {
 
   async triggerBreakTime() {
     console.log("BREAK TIME TRIGGERED!");
-    
+
     // Update phase
-    this.healthReminder.currentPhase = 'break';
+    this.healthReminder.currentPhase = "break";
     this.healthReminder.sessionStartTime = Date.now();
-    
+
     // Save to storage
     await chrome.storage.local.set({
       healthSession: {
-        phase: 'break',
+        phase: "break",
         phaseStartTime: this.healthReminder.sessionStartTime,
-        sessionStartTime: this.healthReminder.sessionStartTime
-      }
+        sessionStartTime: this.healthReminder.sessionStartTime,
+      },
     });
-    
+
     // Show break notification
     this.showBreakNotification();
-    
+
     // Start tab blinking
     this.startTabBlinking();
-    
+
     // Show break modal
     this.showBreakModal();
   }
 
   async startBreakPhase() {
     console.log("Break phase started by user");
-    
+
     // Stop tab blinking and hide modal
     this.stopTabBlinking();
     this.hideBreakModal();
-    
+
     // Phase is already set to 'break', just continue with timer
     console.log("Break timer running for 2 minutes");
   }
 
   async skipBreakPhase() {
     console.log("Break phase skipped by user");
-    
+
     // Stop tab blinking and hide modal
     this.stopTabBlinking();
     this.hideBreakModal();
-    
+
     // Go directly to rest phase
     await this.startRestPhase();
   }
 
   async startRestPhase() {
     console.log("Rest phase started");
-    
+
     // Update phase
-    this.healthReminder.currentPhase = 'rest';
+    this.healthReminder.currentPhase = "rest";
     this.healthReminder.sessionStartTime = Date.now();
-    
+
     // Save to storage
     await chrome.storage.local.set({
       healthSession: {
-        phase: 'rest',
+        phase: "rest",
         phaseStartTime: this.healthReminder.sessionStartTime,
-        sessionStartTime: this.healthReminder.sessionStartTime
-      }
+        sessionStartTime: this.healthReminder.sessionStartTime,
+      },
     });
   }
 
@@ -530,9 +587,11 @@ class ProductivityDashboard {
         timerElement.style.color = color;
       }
     }
-    
+
     // Debug: Log current phase and display
-    console.log(`Health Reminder - Phase: ${this.healthReminder.currentPhase}, Display: ${text}`);
+    console.log(
+      `Health Reminder - Phase: ${this.healthReminder.currentPhase}, Display: ${text}`
+    );
   }
 
   setHealthTip(text) {
@@ -582,7 +641,7 @@ class ProductivityDashboard {
           body: "You've been sitting for 45 minutes. Take a 2-minute break to move around!",
           icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>",
           tag: "health-break",
-          requireInteraction: true
+          requireInteraction: true,
         });
         setTimeout(() => notification.close(), 10000);
       } else if (Notification.permission !== "denied") {
@@ -606,15 +665,19 @@ class ProductivityDashboard {
 
   startTabBlinking() {
     this.stopTabBlinking();
-    
+
     let isBlinking = false;
     this.healthReminder.tabBlinkInterval = setInterval(() => {
       if (isBlinking) {
         document.title = this.healthReminder.originalTitle;
-        this.setFavicon("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>");
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+        );
       } else {
         document.title = "⚠️ BREAK TIME! MOVE YOUR BODY! ⚠️";
-        this.setFavicon("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>");
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>"
+        );
       }
       isBlinking = !isBlinking;
     }, 600);
@@ -626,8 +689,10 @@ class ProductivityDashboard {
       this.healthReminder.tabBlinkInterval = null;
     }
     document.title = this.healthReminder.originalTitle;
-    this.setFavicon("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>");
-    
+    this.setFavicon(
+      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+    );
+
     // Remove visual alert classes
     const healthWidget = document.querySelector(".health-reminder-widget");
     const timerDisplay = document.getElementById("reminder-timer");
@@ -638,7 +703,7 @@ class ProductivityDashboard {
   setFavicon(iconUrl) {
     const existingFavicon = document.querySelector("link[rel*='icon']");
     if (existingFavicon) existingFavicon.remove();
-    
+
     const favicon = document.createElement("link");
     favicon.rel = "icon";
     favicon.type = "image/svg+xml";
@@ -664,7 +729,8 @@ class ProductivityDashboard {
     // Reset health tip text
     const tipElement = document.getElementById("health-tip-text");
     if (tipElement) {
-      tipElement.textContent = "Stay active! Regular movement boosts productivity and health";
+      tipElement.textContent =
+        "Stay active! Regular movement boosts productivity and health";
     }
 
     // Hide "I'm Back" button when starting new session
@@ -796,7 +862,7 @@ class ProductivityDashboard {
         }
       });
     }, 1000);
-    
+
     console.log("Timer debug - Timer interval started");
   }
 
@@ -815,16 +881,24 @@ class ProductivityDashboard {
       .get(["phaseStartTime", "timerPhase"])
       .then((result) => {
         console.log("Timer debug - Storage result:", result);
-        
+
         if (!result.phaseStartTime || !result.timerPhase) {
-          console.log("Timer debug - Missing phase data, initializing new session");
+          console.log(
+            "Timer debug - Missing phase data, initializing new session"
+          );
           // If no phase data exists, start a new session
           this.startNewGlobalSession();
           return;
         }
 
         const elapsed = Date.now() - result.phaseStartTime;
-        console.log("Timer debug - Phase:", result.timerPhase, "Elapsed:", Math.floor(elapsed/1000), "seconds");
+        console.log(
+          "Timer debug - Phase:",
+          result.timerPhase,
+          "Elapsed:",
+          Math.floor(elapsed / 1000),
+          "seconds"
+        );
 
         if (result.timerPhase === "sitting") {
           const remaining = Math.max(
@@ -849,7 +923,9 @@ class ProductivityDashboard {
               timerElement.style.color = "";
               console.log("Timer debug - Updated element with:", timeString);
             } else {
-              console.error("Timer debug - Element 'reminder-timer' not found!");
+              console.error(
+                "Timer debug - Element 'reminder-timer' not found!"
+              );
             }
           }
 
@@ -893,10 +969,14 @@ class ProductivityDashboard {
     this.healthReminder.tabBlinkInterval = setInterval(() => {
       if (isBlinking) {
         document.title = this.healthReminder.originalTitle;
-        this.setFavicon("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>");
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+        );
       } else {
         document.title = "⚠️ BREAK TIME! MOVE YOUR BODY! ⚠️";
-        this.setFavicon("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>");
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>"
+        );
       }
       isBlinking = !isBlinking;
     }, 600); // Faster blinking for more attention
@@ -912,8 +992,10 @@ class ProductivityDashboard {
     }
     // Reset to original title and favicon
     document.title = this.healthReminder.originalTitle;
-    this.setFavicon("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>");
-    
+    this.setFavicon(
+      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+    );
+
     // Remove visual alert classes
     const healthWidget = document.querySelector(".health-reminder-widget");
     const timerDisplay = document.getElementById("reminder-timer");
@@ -949,14 +1031,13 @@ class ProductivityDashboard {
           body: "You've been sitting for 45 minutes. Take a 2-minute break to move around!",
           icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>",
           tag: "health-break",
-          requireInteraction: true
+          requireInteraction: true,
         });
 
         // Auto-close notification after 10 seconds if user doesn't interact
         setTimeout(() => {
           notification.close();
         }, 10000);
-
       } else if (Notification.permission !== "denied") {
         // Request permission
         Notification.requestPermission().then((permission) => {
@@ -971,7 +1052,8 @@ class ProductivityDashboard {
   showBreakReminder() {
     // Only show modal if not already shown and not currently on break
     const modal = document.getElementById("break-reminder-modal");
-    if (!modal.classList.contains("hidden") || this.healthReminder.isOnBreak) return;
+    if (!modal.classList.contains("hidden") || this.healthReminder.isOnBreak)
+      return;
 
     // Start tab blinking animation
     this.startTabBlinking();
@@ -1028,7 +1110,10 @@ class ProductivityDashboard {
     this.healthReminder.isOnBreak = true;
     const breakStartTime = now;
 
-    console.log("Break timer starting - break duration:", this.healthReminder.breakDuration);
+    console.log(
+      "Break timer starting - break duration:",
+      this.healthReminder.breakDuration
+    );
 
     // Start break countdown
     this.healthReminder.breakTimer = setInterval(() => {
@@ -1083,7 +1168,7 @@ class ProductivityDashboard {
 
   startBreakTimerFromSync(breakStartTime) {
     console.log("Timer debug - Starting break timer from sync");
-    
+
     // Clear any existing break timer
     if (this.healthReminder.breakTimer) {
       clearInterval(this.healthReminder.breakTimer);
@@ -1121,7 +1206,10 @@ class ProductivityDashboard {
         if (timerElement) {
           timerElement.textContent = "BREAK " + timeString;
           timerElement.style.color = "#ffffff"; // White color for black/white theme
-          console.log("Timer debug - Updated main timer with:", "BREAK " + timeString);
+          console.log(
+            "Timer debug - Updated main timer with:",
+            "BREAK " + timeString
+          );
         }
       }
 
@@ -1162,25 +1250,6 @@ class ProductivityDashboard {
     await this.syncToRestPhase();
 
     console.log("Break skipped - will restart timer in 5 minutes");
-  }
-
-  async returnFromRest() {
-    console.log("User clicked 'I'm Back' - starting new session immediately");
-    
-    // Hide the rest actions button
-    const restActions = document.getElementById("rest-actions");
-    if (restActions) {
-      restActions.style.display = "none";
-    }
-
-    // Clear any pending restart timers
-    if (this.healthReminder.restTimer) {
-      clearTimeout(this.healthReminder.restTimer);
-      this.healthReminder.restTimer = null;
-    }
-
-    // Start new session immediately
-    await this.startNewGlobalSession();
   }
 
   async endBreak() {
