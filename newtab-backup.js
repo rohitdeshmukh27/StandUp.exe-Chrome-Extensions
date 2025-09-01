@@ -149,12 +149,9 @@ class ProductivityDashboard {
   constructor() {
     this.shortcuts = [];
     this.healthReminder = {
-      // Will sync with global timer from background service
-      globalStartTime: null,
-      syncInterval: null,
-      resyncInterval: null,
-      retryAttempted: false,
-      notificationTimer: null,
+      startTime: Date.now(),
+      interval: 60 * 60 * 1000, // 1 hour in milliseconds
+      timer: null,
     };
     this.timeUpdateInterval = null;
 
@@ -164,7 +161,6 @@ class ProductivityDashboard {
       reminderTimer: null,
       daysRemaining: null,
       yearPercentage: null,
-      breakCountdown: null,
     };
 
     this.init();
@@ -177,34 +173,20 @@ class ProductivityDashboard {
     this.startTimeUpdate();
     this.updateDaysRemaining();
     this.loadShortcuts();
-    this.initializeSimpleHealthReminder();
+    this.initializeHealthReminder();
 
-    // Clean up when page unloads
-    window.addEventListener("beforeunload", () => {
-      this.cleanup();
+    // Listen for background script messages to play sound
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === "playHealthReminderSound") {
+        this.playNotificationSound();
+      }
     });
+
+    // Ensure tab is not blinking on page load
+    this.stopTabBlinking();
 
     // Add debug info for shortcuts (only in console, no notifications)
     console.log("Dashboard initialized. Current shortcuts:", this.shortcuts);
-  }
-
-  cleanup() {
-    if (this.healthReminder.syncInterval) {
-      clearInterval(this.healthReminder.syncInterval);
-      this.healthReminder.syncInterval = null;
-    }
-    if (this.healthReminder.resyncInterval) {
-      clearInterval(this.healthReminder.resyncInterval);
-      this.healthReminder.resyncInterval = null;
-    }
-    if (this.healthReminder.notificationTimer) {
-      clearInterval(this.healthReminder.notificationTimer);
-      this.healthReminder.notificationTimer = null;
-    }
-    if (this.timeUpdateInterval) {
-      clearInterval(this.timeUpdateInterval);
-      this.timeUpdateInterval = null;
-    }
   }
 
   initializeAnimatedNumbers() {
@@ -234,13 +216,6 @@ class ProductivityDashboard {
       percentageElement.classList.add("animated-number");
       this.animatedNumbers.yearPercentage = new AnimatedNumber(
         percentageElement
-      );
-    }
-
-    if (breakCountdownElement) {
-      breakCountdownElement.classList.add("animated-number");
-      this.animatedNumbers.breakCountdown = new AnimatedNumber(
-        breakCountdownElement
       );
     }
   }
@@ -306,303 +281,846 @@ class ProductivityDashboard {
 
   // Global Health Reminder System - Synchronized across all tabs
   // =============================================================================
-  // SIMPLIFIED HEALTH REMINDER SYSTEM
+  // SIMPLE HEALTH REMINDER SYSTEM
   // =============================================================================
 
-  async initializeSimpleHealthReminder() {
-    // Try to get timer state directly from storage first
-    try {
-      const result = await chrome.storage.local.get([
-        "isWorkingMode",
-        "globalTimerStartTime",
-      ]);
-      console.log("Direct storage result:", result);
-
-      if (result.isWorkingMode && result.globalTimerStartTime) {
-        this.healthReminder.globalStartTime = result.globalTimerStartTime;
-        console.log(
-          "Using existing timer from storage, start time:",
-          new Date(result.globalTimerStartTime)
-        );
-
-        // Start the sync immediately
-        this.startGlobalTimerSync();
-
-        // Update display immediately
-        this.updateDisplayFromGlobalTimer();
-      } else {
-        // No timer active, show default state
-        this.setTimerDisplay("--:--", "#ffffff");
-        this.setHealthTip(
-          "Click here to start health reminders (60-minute intervals)"
-        );
-        console.log("No active timer found in storage");
-      }
-    } catch (error) {
-      console.error("Failed to access storage:", error);
-      this.setTimerDisplay("--:--", "#ffffff");
-      this.setHealthTip("Storage access error");
-    }
-
-    console.log("Simple Health Reminder System initialized");
+  async initializeHealthReminder() {
+    console.log("Initializing Simple Health Reminder System...");
+    
+    // Set start time
+    this.healthReminder.startTime = Date.now();
+    
+    // Start the countdown timer
+    this.startHealthTimer();
+    
+    console.log("Health Reminder System initialized - 1 hour countdown started");
   }
 
-  async syncWithGlobalTimer() {
-    try {
-      console.log("Sending message to background service...");
-      const response = await chrome.runtime.sendMessage({
-        action: "getGlobalTimerState",
-      });
-
-      console.log("Global timer sync response:", response);
-
-      if (response && response.isActive && response.startTime) {
-        this.healthReminder.globalStartTime = response.startTime;
-        this.updateDisplayFromGlobalTimer();
-        console.log("Synced with global timer successfully");
-      } else if (response && !response.isActive) {
-        // Working mode is not active
-        this.setTimerDisplay("--:--", "#ffffff");
-        this.setHealthTip(
-          "Enable Working Mode in the extension popup to start health reminders"
-        );
-        console.log("Working mode is not active");
-      } else if (response && response.error) {
-        // Error response from background
-        console.error("Background service error:", response.error);
-        this.setTimerDisplay("--:--", "#ffffff");
-        this.setHealthTip("Error: " + response.error);
-      } else {
-        // No valid response
-        this.setTimerDisplay("60:00", "#ffffff");
-        this.setHealthTip(
-          "Click the extension icon to enable health reminders"
-        );
-        console.log("No valid timer response");
-      }
-    } catch (error) {
-      console.error("Failed to sync with global timer:", error);
-      // Show a fallback state instead of retrying indefinitely
-      this.setTimerDisplay("--:--", "#ffffff");
-      this.setHealthTip("Health reminder unavailable - check extension popup");
-
-      // Only retry once after 2 seconds, then give up
-      if (!this.healthReminder.retryAttempted) {
-        this.healthReminder.retryAttempted = true;
-        setTimeout(() => {
-          console.log("Retrying global timer sync...");
-          this.syncWithGlobalTimer();
-        }, 2000);
-      }
+  startHealthTimer() {
+    // Clear any existing timer
+    if (this.healthReminder.timer) {
+      clearInterval(this.healthReminder.timer);
     }
-  }
 
-  startGlobalTimerSync() {
-    // Update display every second
-    this.healthReminder.syncInterval = setInterval(() => {
-      this.updateDisplayFromGlobalTimer();
+    // Start timer that updates every second
+    this.healthReminder.timer = setInterval(() => {
+      this.updateHealthDisplay();
     }, 1000);
 
-    // Re-sync with storage every 30 seconds to prevent drift
-    this.healthReminder.resyncInterval = setInterval(async () => {
-      try {
-        const result = await chrome.storage.local.get([
-          "isWorkingMode",
-          "globalTimerStartTime",
-        ]);
-        if (result.isWorkingMode && result.globalTimerStartTime) {
-          // Only update if the stored time is different (another tab started/stopped timer)
-          if (
-            this.healthReminder.globalStartTime !== result.globalTimerStartTime
-          ) {
-            console.log("Timer state changed in another tab, syncing...");
-            this.healthReminder.globalStartTime = result.globalTimerStartTime;
-          }
-        } else if (result.isWorkingMode === false) {
-          // Timer was stopped in another tab
-          console.log("Timer stopped in another tab");
-          this.healthReminder.globalStartTime = null;
-          this.setTimerDisplay("--:--", "#ffffff");
-          this.setHealthTip(
-            "Click here to start health reminders (60-minute intervals)"
-          );
-        }
-      } catch (error) {
-        console.error("Re-sync error:", error);
-      }
-    }, 30000);
+    // Initial update
+    this.updateHealthDisplay();
   }
 
-  updateDisplayFromGlobalTimer() {
-    if (!this.healthReminder.globalStartTime) {
-      // If no timer is active, show a default state and offer to start one
-      this.setTimerDisplay("--:--", "#ffffff");
-      this.setHealthTip(
-        "Click here to start health reminders (60-minute intervals)"
-      );
-      console.log("No global timer start time available");
-      return;
-    }
-
+  updateHealthDisplay() {
     const now = Date.now();
-    const startTime = this.healthReminder.globalStartTime;
-    const elapsed = now - startTime;
-    const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+    const elapsed = now - this.healthReminder.startTime;
+    const remaining = Math.max(0, this.healthReminder.interval - elapsed);
 
-    console.log("Timer calculation:", {
-      now: new Date(now),
-      startTime: new Date(startTime),
-      elapsed: elapsed,
-      elapsedMinutes: Math.floor(elapsed / 60000),
-    });
-
-    // Handle case where elapsed time is negative (clock issues)
-    if (elapsed < 0) {
-      console.warn("Timer elapsed time is negative, resetting");
-      this.setTimerDisplay("60:00", "#ffffff");
+    if (remaining === 0) {
+      // Reset timer for next hour
+      this.healthReminder.startTime = Date.now();
+      this.showHealthReminder();
       return;
     }
 
-    // Calculate how many complete hours have passed
-    const completedHours = Math.floor(elapsed / oneHour);
-
-    // Calculate time into current hour
-    const timeIntoCurrentHour = elapsed - completedHours * oneHour;
-
-    // Calculate time remaining until next hour
-    const remaining = oneHour - timeIntoCurrentHour;
-
-    console.log("Detailed calculation:", {
-      completedHours,
-      timeIntoCurrentHour,
-      timeIntoCurrentHourMinutes: Math.floor(timeIntoCurrentHour / 60000),
-      remaining,
-      remainingMinutes: Math.floor(remaining / 60000),
-    });
-
-    // Ensure remaining time is valid
-    if (remaining <= 0 || remaining > oneHour) {
-      console.warn("Invalid remaining time calculated:", remaining);
-      this.setTimerDisplay("60:00", "#ffffff");
-      return;
-    }
-
-    const minutes = Math.floor(remaining / 60000);
+    const totalMinutes = Math.floor(remaining / 60000);
     const seconds = Math.floor((remaining % 60000) / 1000);
-    const timeString = `${minutes.toString().padStart(2, "0")}:${seconds
+    const timeString = `${totalMinutes.toString().padStart(2, "0")}:${seconds
       .toString()
       .padStart(2, "0")}`;
 
     // Update display
-    this.setTimerDisplay(timeString, "#ffffff");
-    this.setHealthTip(
-      "Stay active! Regular movement boosts productivity and health"
-    );
-
-    console.log("Display updated:", timeString);
+    this.setTimerDisplay(timeString);
+    this.setHealthTip("Stay active! Regular movement boosts productivity and health");
+    this.hideRestActions();
   }
 
-  // Add method to manually start timer
-  async startHealthTimer() {
-    const now = Date.now();
+  showHealthReminder() {
+    console.log("Health reminder triggered!");
+    this.playNotificationSound();
+    // The notification will be shown by the background script
+  }
 
-    // Round to the nearest hour boundary for cleaner sync across tabs
-    const currentHour = new Date();
-    currentHour.setMinutes(0, 0, 0); // Set to start of current hour
-    const startTime = currentHour.getTime();
-
-    this.healthReminder.globalStartTime = startTime;
-
+  playNotificationSound() {
     try {
-      await chrome.storage.local.set({
-        isWorkingMode: true,
-        globalTimerStartTime: startTime,
+      // Create audio context and play a pleasant notification sound
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Create a sequence of pleasant tones
+      const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5 (C major chord)
+      
+      frequencies.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+        oscillator.type = 'sine';
+        
+        // Volume envelope
+        const startTime = audioContext.currentTime + (index * 0.2);
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.1, startTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + 0.4);
       });
-      console.log("Health timer started manually at:", new Date(startTime));
-      console.log("Timer will trigger every hour on the hour");
-
-      // Update display immediately
-      this.updateDisplayFromGlobalTimer();
-
-      // Start sync intervals
-      this.startGlobalTimerSync();
-
-      // Start hourly notifications
-      this.scheduleHourlyNotifications();
-
-      this.setHealthTip(
-        "Health reminders active! You'll get notified every hour on the hour."
-      );
+      
+      console.log("Health reminder sound played");
     } catch (error) {
-      console.error("Failed to start timer:", error);
+      console.log("Could not play sound:", error);
     }
   }
 
-  scheduleHourlyNotifications() {
-    // Clear any existing notification timer
-    if (this.healthReminder.notificationTimer) {
-      clearInterval(this.healthReminder.notificationTimer);
+  // =============================================================================
+  // UI UPDATE METHODS
+  // =============================================================================
+
+  setTimerDisplay(text, color = "#ffffff") {
+    if (this.animatedNumbers.reminderTimer) {
+      this.animatedNumbers.reminderTimer.setValue(text);
+    } else {
+      const timerElement = document.getElementById("reminder-timer");
+      if (timerElement) {
+        timerElement.textContent = text;
+        timerElement.style.color = color;
+      }
     }
-
-    // Set up hourly notifications
-    this.healthReminder.notificationTimer = setInterval(() => {
-      this.showHealthNotification();
-    }, 60 * 60 * 1000); // 60 minutes
-
-    console.log("Hourly notifications scheduled");
   }
 
-  showHealthNotification() {
+  setHealthTip(text) {
+    const tipElement = document.getElementById("health-tip-text");
+    if (tipElement) {
+      tipElement.textContent = text;
+    }
+  }
+
+  hideRestActions() {
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "none";
+    }
+  }
+    }
+  }
+
+  showRestActions() {
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "block";
+    }
+  }
+
+  hideRestActions() {
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "none";
+    }
+  }
+
+  showBreakModal() {
+    const modal = document.getElementById("break-reminder-modal");
+    if (modal) {
+      modal.classList.remove("hidden");
+    }
+  }
+
+  hideBreakModal() {
+    const modal = document.getElementById("break-reminder-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+  }
+
+  // =============================================================================
+  // NOTIFICATION AND TAB BLINKING METHODS
+  // =============================================================================
+
+  showBreakNotification() {
     // Browser notification
     if ("Notification" in window) {
       if (Notification.permission === "granted") {
-        const notification = new Notification("🏃‍♂️ HEALTH REMINDER", {
-          body: "Time for a health break! Stand up, stretch, and move around.",
-          icon: "icons/icon48.png",
-          tag: "health-reminder",
-          requireInteraction: false,
+        const notification = new Notification("Time for a Health Break! 🚶", {
+          body: "You've been sitting for 45 minutes. Take a 2-minute break to move around!",
+          icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>",
+          tag: "health-break",
+          requireInteraction: true,
         });
-
-        // Play a simple beep sound
-        try {
-          const audio = new Audio(
-            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
-          );
-          audio.volume = 0.5;
-          audio.play().catch(() => {});
-        } catch (e) {
-          console.log("Could not play notification sound");
-        }
-
         setTimeout(() => notification.close(), 10000);
       } else if (Notification.permission !== "denied") {
-        Notification.requestPermission();
+        Notification.requestPermission().then((permission) => {
+          if (permission === "granted") {
+            this.showBreakNotification();
+          }
+        });
       }
     }
+
+    // Play sound
+    try {
+      const audio = new Audio(
+        "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
+      );
+      audio.volume = 0.3;
+      audio.play().catch(() => {});
+    } catch (e) {}
   }
 
-  setTimerDisplay(timeString, color) {
-    const timerElement = document.getElementById("reminder-timer");
-    if (timerElement) {
-      if (this.animatedNumbers.reminderTimer) {
-        this.animatedNumbers.reminderTimer.setValue(timeString);
+  startTabBlinking() {
+    this.stopTabBlinking();
+
+    let isBlinking = false;
+    this.healthReminder.tabBlinkInterval = setInterval(() => {
+      if (isBlinking) {
+        document.title = this.healthReminder.originalTitle;
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+        );
       } else {
-        timerElement.textContent = timeString;
+        document.title = "⚠️ BREAK TIME! MOVE YOUR BODY! ⚠️";
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>"
+        );
       }
-      timerElement.style.color = color;
-    }
+      isBlinking = !isBlinking;
+    }, 600);
   }
 
-  setHealthTip(tipText) {
+  stopTabBlinking() {
+    if (this.healthReminder.tabBlinkInterval) {
+      clearInterval(this.healthReminder.tabBlinkInterval);
+      this.healthReminder.tabBlinkInterval = null;
+    }
+    document.title = this.healthReminder.originalTitle;
+    this.setFavicon(
+      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+    );
+
+    // Remove visual alert classes
+    const healthWidget = document.querySelector(".health-reminder-widget");
+    const timerDisplay = document.getElementById("reminder-timer");
+    if (healthWidget) healthWidget.classList.remove("break-alert");
+    if (timerDisplay) timerDisplay.classList.remove("break-alert");
+  }
+
+  setFavicon(iconUrl) {
+    const existingFavicon = document.querySelector("link[rel*='icon']");
+    if (existingFavicon) existingFavicon.remove();
+
+    const favicon = document.createElement("link");
+    favicon.rel = "icon";
+    favicon.type = "image/svg+xml";
+    favicon.href = iconUrl;
+    document.head.appendChild(favicon);
+  }
+
+  async startNewGlobalSession() {
+    const now = Date.now();
+    const globalState = {
+      globalTimerState: "sitting",
+      globalStartTime: now,
+      timerPhase: "sitting",
+      phaseStartTime: now,
+    };
+
+    await chrome.storage.local.set(globalState);
+
+    this.healthReminder.globalStartTime = now;
+    this.healthReminder.isOnBreak = false;
+    this.healthReminder.isOnRest = false;
+
+    // Reset health tip text
     const tipElement = document.getElementById("health-tip-text");
     if (tipElement) {
-      tipElement.textContent = tipText;
+      tipElement.textContent =
+        "Stay active! Regular movement boosts productivity and health";
+    }
+
+    // Hide "I'm Back" button when starting new session
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "none";
+    }
+
+    this.startReminderDisplay();
+    console.log("New global health session started");
+  }
+
+  async syncWithGlobalTimer(globalData) {
+    const now = Date.now();
+    const { globalStartTime, timerPhase, phaseStartTime } = globalData;
+
+    this.healthReminder.globalStartTime = globalStartTime;
+
+    switch (timerPhase) {
+      case "sitting":
+        const sittingElapsed = now - phaseStartTime;
+        if (sittingElapsed >= this.healthReminder.sittingDuration) {
+          // Should be on break
+          await this.syncToBreakPhase();
+        } else {
+          this.healthReminder.isOnBreak = false;
+          this.healthReminder.isOnRest = false;
+          this.startReminderDisplay();
+        }
+        break;
+
+      case "break":
+      case "break-active":
+        this.healthReminder.isOnBreak = true;
+        this.healthReminder.isOnRest = false;
+        const breakElapsed = now - phaseStartTime;
+        if (breakElapsed >= this.healthReminder.breakDuration) {
+          // Should be on rest
+          await this.syncToRestPhase();
+        } else {
+          // Start the break timer display if not already running
+          if (!this.healthReminder.breakTimer) {
+            this.startBreakTimerFromSync(phaseStartTime);
+          }
+        }
+        break;
+
+      case "rest":
+        this.healthReminder.isOnBreak = false;
+        this.healthReminder.isOnRest = true;
+        const restElapsed = now - phaseStartTime;
+        if (restElapsed >= this.healthReminder.restartDelay) {
+          // Should start new sitting session
+          await this.startNewGlobalSession();
+        } else {
+          this.showRestState();
+        }
+        break;
+    }
+
+    console.log(`Synced with global timer - Phase: ${timerPhase}`);
+  }
+
+  startGlobalSync() {
+    // Sync with global state every 5 seconds
+    this.healthReminder.syncInterval = setInterval(async () => {
+      try {
+        const result = await chrome.storage.local.get([
+          "timerPhase",
+          "phaseStartTime",
+        ]);
+        if (result.timerPhase && result.phaseStartTime) {
+          await this.syncWithGlobalTimer(result);
+        }
+      } catch (error) {
+        console.warn("Global sync failed:", error);
+      }
+    }, 5000);
+  }
+
+  async syncToBreakPhase() {
+    const now = Date.now();
+    await chrome.storage.local.set({
+      timerPhase: "break",
+      phaseStartTime: now,
+    });
+
+    this.healthReminder.isOnBreak = true;
+    this.healthReminder.isOnRest = false;
+    this.showBreakReminder();
+  }
+
+  async syncToRestPhase() {
+    const now = Date.now();
+    await chrome.storage.local.set({
+      timerPhase: "rest",
+      phaseStartTime: now,
+    });
+
+    this.healthReminder.isOnBreak = false;
+    this.healthReminder.isOnRest = true;
+    this.showRestState();
+  }
+
+  startReminderDisplay() {
+    console.log("Timer debug - startReminderDisplay called");
+    this.updateReminderDisplay();
+
+    // Clear any existing timer
+    if (this.healthReminder.sittingTimer) {
+      clearInterval(this.healthReminder.sittingTimer);
+    }
+
+    // Start the sitting timer display
+    this.healthReminder.sittingTimer = setInterval(() => {
+      this.updateReminderDisplay();
+
+      // Check if 45 minutes have passed
+      const result = chrome.storage.local.get(["phaseStartTime"]);
+      result.then((data) => {
+        if (data.phaseStartTime) {
+          const elapsed = Date.now() - data.phaseStartTime;
+          if (
+            elapsed >= this.healthReminder.sittingDuration &&
+            !this.healthReminder.isOnBreak
+          ) {
+            this.triggerBreakTime();
+          }
+        }
+      });
+    }, 1000);
+
+    console.log("Timer debug - Timer interval started");
+  }
+
+  async triggerBreakTime() {
+    // Clear the sitting timer
+    if (this.healthReminder.sittingTimer) {
+      clearInterval(this.healthReminder.sittingTimer);
+      this.healthReminder.sittingTimer = null;
+    }
+
+    await this.syncToBreakPhase();
+  }
+
+  updateReminderDisplay() {
+    chrome.storage.local
+      .get(["phaseStartTime", "timerPhase"])
+      .then((result) => {
+        console.log("Timer debug - Storage result:", result);
+
+        if (!result.phaseStartTime || !result.timerPhase) {
+          console.log(
+            "Timer debug - Missing phase data, initializing new session"
+          );
+          // If no phase data exists, start a new session
+          this.startNewGlobalSession();
+          return;
+        }
+
+        const elapsed = Date.now() - result.phaseStartTime;
+        console.log(
+          "Timer debug - Phase:",
+          result.timerPhase,
+          "Elapsed:",
+          Math.floor(elapsed / 1000),
+          "seconds"
+        );
+
+        if (result.timerPhase === "sitting") {
+          const remaining = Math.max(
+            0,
+            this.healthReminder.sittingDuration - elapsed
+          );
+          const minutes = Math.floor(remaining / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          const timeString = `${minutes.toString().padStart(2, "0")}:${seconds
+            .toString()
+            .padStart(2, "0")}`;
+
+          console.log("Timer debug - Displaying:", timeString);
+
+          // Update with animation
+          if (this.animatedNumbers.reminderTimer) {
+            this.animatedNumbers.reminderTimer.setValue(timeString);
+          } else {
+            const timerElement = document.getElementById("reminder-timer");
+            if (timerElement) {
+              timerElement.textContent = timeString;
+              timerElement.style.color = "";
+              console.log("Timer debug - Updated element with:", timeString);
+            } else {
+              console.error(
+                "Timer debug - Element 'reminder-timer' not found!"
+              );
+            }
+          }
+
+          // Hide "I'm Back" button during sitting phase
+          const restActions = document.getElementById("rest-actions");
+          if (restActions) {
+            restActions.style.display = "none";
+          }
+        }
+
+        // Update health tip
+        this.updateHealthTip(elapsed);
+      })
+      .catch((error) => {
+        console.error("Timer debug - Storage error:", error);
+      });
+  }
+
+  updateHealthTip(elapsed) {
+    const tipElement = document.getElementById("health-tip-text");
+    if (tipElement) {
+      const tips = [
+        "Stay active! Regular movement boosts productivity and health",
+        "Remember to blink often and focus on distant objects",
+        "Keep your water bottle nearby - hydration is key",
+        "Good posture helps prevent back and neck pain",
+        "Deep breathing exercises can reduce stress and improve focus",
+      ];
+
+      // Change tip every 10 minutes
+      const tipIndex = Math.floor(elapsed / 600000) % tips.length;
+      tipElement.textContent = tips[tipIndex];
     }
   }
 
-  // =============================================================================
-  // END OF HEALTH REMINDER SECTION
-  // =============================================================================
+  startTabBlinking() {
+    // Stop any existing blinking
+    this.stopTabBlinking();
+
+    let isBlinking = false;
+    this.healthReminder.tabBlinkInterval = setInterval(() => {
+      if (isBlinking) {
+        document.title = this.healthReminder.originalTitle;
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+        );
+      } else {
+        document.title = "⚠️ BREAK TIME! MOVE YOUR BODY! ⚠️";
+        this.setFavicon(
+          "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>"
+        );
+      }
+      isBlinking = !isBlinking;
+    }, 600); // Faster blinking for more attention
+
+    // Try to show browser notification
+    this.showBrowserNotification();
+  }
+
+  stopTabBlinking() {
+    if (this.healthReminder.tabBlinkInterval) {
+      clearInterval(this.healthReminder.tabBlinkInterval);
+      this.healthReminder.tabBlinkInterval = null;
+    }
+    // Reset to original title and favicon
+    document.title = this.healthReminder.originalTitle;
+    this.setFavicon(
+      "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23333'/></svg>"
+    );
+
+    // Remove visual alert classes
+    const healthWidget = document.querySelector(".health-reminder-widget");
+    const timerDisplay = document.getElementById("reminder-timer");
+    if (healthWidget) {
+      healthWidget.classList.remove("break-alert");
+    }
+    if (timerDisplay) {
+      timerDisplay.classList.remove("break-alert");
+    }
+  }
+
+  setFavicon(iconUrl) {
+    // Remove existing favicon
+    const existingFavicon = document.querySelector("link[rel*='icon']");
+    if (existingFavicon) {
+      existingFavicon.remove();
+    }
+
+    // Add new favicon
+    const favicon = document.createElement("link");
+    favicon.rel = "icon";
+    favicon.type = "image/svg+xml";
+    favicon.href = iconUrl;
+    document.head.appendChild(favicon);
+  }
+
+  showBrowserNotification() {
+    // Check if notifications are supported and request permission
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        // Create notification
+        const notification = new Notification("Time for a Health Break! 🚶", {
+          body: "You've been sitting for 45 minutes. Take a 2-minute break to move around!",
+          icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23ff4444'/><text x='50' y='60' text-anchor='middle' font-size='40' fill='white'>!</text></svg>",
+          tag: "health-break",
+          requireInteraction: true,
+        });
+
+        // Auto-close notification after 10 seconds if user doesn't interact
+        setTimeout(() => {
+          notification.close();
+        }, 10000);
+      } else if (Notification.permission !== "denied") {
+        // Request permission
+        Notification.requestPermission().then((permission) => {
+          if (permission === "granted") {
+            this.showBrowserNotification(); // Retry now that we have permission
+          }
+        });
+      }
+    }
+  }
+
+  showBreakReminder() {
+    // Only show modal if not already shown and not currently on break
+    const modal = document.getElementById("break-reminder-modal");
+    if (!modal.classList.contains("hidden") || this.healthReminder.isOnBreak)
+      return;
+
+    // Start tab blinking animation
+    this.startTabBlinking();
+
+    // Add visual alert to the health reminder widget
+    const healthWidget = document.querySelector(".health-reminder-widget");
+    const timerDisplay = document.getElementById("reminder-timer");
+    if (healthWidget) {
+      healthWidget.classList.add("break-alert");
+    }
+    if (timerDisplay) {
+      timerDisplay.classList.add("break-alert");
+    }
+
+    // Show the modal
+    modal.classList.remove("hidden");
+
+    // Play a gentle notification sound (if browser allows)
+    try {
+      const audio = new Audio(
+        "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
+      );
+      audio.volume = 0.3;
+      audio.play().catch(() => {
+        // Ignore audio errors (some browsers block autoplay)
+      });
+    } catch (e) {
+      // Ignore audio errors
+    }
+
+    console.log("Break reminder shown - 45 minutes of sitting completed");
+  }
+
+  async startBreak() {
+    const modal = document.getElementById("break-reminder-modal");
+    modal.classList.add("hidden");
+
+    // Stop tab blinking when break starts
+    this.stopTabBlinking();
+
+    // Stop the sitting timer to prevent conflicts
+    if (this.healthReminder.sittingTimer) {
+      clearInterval(this.healthReminder.sittingTimer);
+      this.healthReminder.sittingTimer = null;
+    }
+
+    // Update global state to break phase with timer
+    const now = Date.now();
+    await chrome.storage.local.set({
+      timerPhase: "break-active",
+      phaseStartTime: now,
+    });
+
+    this.healthReminder.isOnBreak = true;
+    const breakStartTime = now;
+
+    console.log(
+      "Break timer starting - break duration:",
+      this.healthReminder.breakDuration
+    );
+
+    // Start break countdown
+    this.healthReminder.breakTimer = setInterval(() => {
+      const elapsed = Date.now() - breakStartTime;
+      const remaining = Math.max(
+        0,
+        this.healthReminder.breakDuration - elapsed
+      );
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      const timeString = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+      console.log("Break timer update - remaining:", timeString);
+
+      // Update break countdown with animation
+      if (this.animatedNumbers.breakCountdown) {
+        this.animatedNumbers.breakCountdown.setValue(timeString);
+      } else {
+        const countdownElement = document.getElementById("break-countdown");
+        if (countdownElement) {
+          countdownElement.textContent = timeString;
+        }
+      }
+
+      // Update reminder timer to show break countdown
+      if (this.animatedNumbers.reminderTimer) {
+        this.animatedNumbers.reminderTimer.setValue("BREAK " + timeString);
+      } else {
+        const timerElement = document.getElementById("reminder-timer");
+        if (timerElement) {
+          timerElement.textContent = "BREAK " + timeString;
+          timerElement.style.color = "#ffffff"; // White color for black/white theme
+        }
+      }
+
+      // End break after 2 minutes
+      if (remaining <= 0) {
+        this.endBreak();
+      }
+    }, 1000);
+
+    // Update health tip during break
+    const tipElement = document.getElementById("health-tip-text");
+    if (tipElement) {
+      tipElement.textContent =
+        "Great! Take this time to walk, stretch, or step outside";
+    }
+
+    console.log("Break started - 2 minute timer active");
+  }
+
+  startBreakTimerFromSync(breakStartTime) {
+    console.log("Timer debug - Starting break timer from sync");
+
+    // Clear any existing break timer
+    if (this.healthReminder.breakTimer) {
+      clearInterval(this.healthReminder.breakTimer);
+    }
+
+    // Start break countdown from the given start time
+    this.healthReminder.breakTimer = setInterval(() => {
+      const elapsed = Date.now() - breakStartTime;
+      const remaining = Math.max(
+        0,
+        this.healthReminder.breakDuration - elapsed
+      );
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      const timeString = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+      console.log("Timer debug - Break timer showing:", timeString);
+
+      // Update break countdown with animation
+      if (this.animatedNumbers.breakCountdown) {
+        this.animatedNumbers.breakCountdown.setValue(timeString);
+      } else {
+        const countdownElement = document.getElementById("break-countdown");
+        if (countdownElement) {
+          countdownElement.textContent = timeString;
+        }
+      }
+
+      // Update main reminder timer to show break status
+      if (this.animatedNumbers.reminderTimer) {
+        this.animatedNumbers.reminderTimer.setValue("BREAK " + timeString);
+      } else {
+        const timerElement = document.getElementById("reminder-timer");
+        if (timerElement) {
+          timerElement.textContent = "BREAK " + timeString;
+          timerElement.style.color = "#ffffff"; // White color for black/white theme
+          console.log(
+            "Timer debug - Updated main timer with:",
+            "BREAK " + timeString
+          );
+        }
+      }
+
+      // Hide "I'm Back" button during break phase
+      const restActions = document.getElementById("rest-actions");
+      if (restActions) {
+        restActions.style.display = "none";
+      }
+
+      // End break after duration
+      if (remaining <= 0) {
+        this.endBreak();
+      }
+    }, 1000);
+
+    // Update health tip during break
+    const tipElement = document.getElementById("health-tip-text");
+    if (tipElement) {
+      tipElement.textContent =
+        "Great! Take this time to walk, stretch, or step outside";
+    }
+  }
+
+  async skipBreak() {
+    const modal = document.getElementById("break-reminder-modal");
+    modal.classList.add("hidden");
+
+    // Stop tab blinking when break is skipped
+    this.stopTabBlinking();
+
+    // Stop the sitting timer to prevent conflicts
+    if (this.healthReminder.sittingTimer) {
+      clearInterval(this.healthReminder.sittingTimer);
+      this.healthReminder.sittingTimer = null;
+    }
+
+    // Update global state to rest phase
+    await this.syncToRestPhase();
+
+    console.log("Break skipped - will restart timer in 5 minutes");
+  }
+
+  async endBreak() {
+    // Clear break timer
+    if (this.healthReminder.breakTimer) {
+      clearInterval(this.healthReminder.breakTimer);
+      this.healthReminder.breakTimer = null;
+    }
+
+    // Update global state to rest phase
+    await this.syncToRestPhase();
+
+    console.log("Break completed - 5 minute rest period before next timer");
+  }
+
+  showRestState() {
+    this.healthReminder.isOnBreak = false;
+    this.healthReminder.isOnRest = true;
+
+    // Update display
+    if (this.animatedNumbers.reminderTimer) {
+      this.animatedNumbers.reminderTimer.setValue("REST");
+    } else {
+      const timerElement = document.getElementById("reminder-timer");
+      if (timerElement) {
+        timerElement.textContent = "REST";
+        timerElement.style.color = "#2196F3";
+      }
+    }
+
+    const tipElement = document.getElementById("health-tip-text");
+    if (tipElement) {
+      tipElement.textContent =
+        "Well done! Next sitting timer starts in 5 minutes";
+    }
+
+    // Show the "I'm Back" button during rest state
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "block";
+    }
+
+    // Check for rest period completion
+    chrome.storage.local.get(["phaseStartTime"]).then((result) => {
+      if (result.phaseStartTime) {
+        const elapsed = Date.now() - result.phaseStartTime;
+        const remaining = this.healthReminder.restartDelay - elapsed;
+
+        if (remaining <= 0) {
+          this.startNewGlobalSession();
+        } else {
+          setTimeout(() => {
+            this.startNewGlobalSession();
+          }, remaining);
+        }
+      }
+    });
+  }
+
+  // Fallback to local timer if global sync fails
+  startLocalHealthReminder() {
+    console.warn("Using local health reminder as fallback");
+    this.healthReminder.globalStartTime = Date.now();
+    this.startReminderDisplay();
+  }
 
   updateDaysRemaining() {
     const now = new Date();
@@ -651,17 +1169,6 @@ class ProductivityDashboard {
     document
       .getElementById("cancel-shortcut-large")
       .addEventListener("click", () => this.hideAddShortcutModal());
-
-    // Health reminder click to start timer
-    const healthTip = document.getElementById("health-tip-text");
-    if (healthTip) {
-      healthTip.addEventListener("click", () => {
-        if (!this.healthReminder.globalStartTime) {
-          this.startHealthTimer();
-        }
-      });
-      healthTip.style.cursor = "pointer";
-    }
 
     // Health reminder modal controls
     document
@@ -1093,7 +1600,7 @@ class ProductivityDashboard {
       const card = document.createElement("a");
       card.className = "shortcut-card-new custom-shortcut-new";
       card.href = shortcut.url;
-      // Removed target="_blank" so links open in same tab
+      card.target = "_blank";
 
       const domain = new URL(shortcut.url).hostname;
 
