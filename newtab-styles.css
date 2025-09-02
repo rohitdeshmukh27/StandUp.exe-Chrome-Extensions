@@ -13,6 +13,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   position: relative;
+  cursor: url("cursor.png") 12 12, auto;
 }
 
 .dashboard-container {
@@ -1016,6 +1017,32 @@ body {
 
 .mb-20 {
   margin-bottom: 20px;
+}
+
+/* Custom Cursor Styles */
+* {
+  cursor: url("./cursor.png") 12 12, auto;
+}
+
+button,
+a,
+.shortcut-card-new,
+.control-btn,
+.edit-btn,
+.primary-btn,
+.secondary-btn,
+input[type="button"],
+input[type="submit"],
+.clickable {
+  cursor: url("./cursor.png") 12 12, pointer !important;
+}
+
+button:hover,
+a:hover,
+.shortcut-card-new:hover,
+.control-btn:hover,
+.edit-btn:hover {
+  cursor: url("./cursor.png") 12 12, pointer !important;
 }
 
 #shortcuts-status {
