@@ -6,7 +6,7 @@ A modern, health-focused Chrome extension that transforms your new tab into a co
 
 ### 🕒 Real-Time Dashboard
 
-- **Animated Clock**: Beautiful, smooth-updating time display with millisecond precision
+- **Animated Clock**: Beautiful, smooth updating time display with millisecond precision
 - **Local Time Zone**: Automatic detection and display of your local time
 - **Date Information**: Current date with elegant formatting
 
