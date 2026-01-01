@@ -6,8 +6,9 @@
 }
 
 body {
-  font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, sans-serif;
+  font-family: "Geom", "Inter", "SF Pro Display", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 500;
   background: #000000;
   color: #ffffff;
   min-height: 100vh;
@@ -57,13 +58,96 @@ body {
 /* Header */
 .main-header {
   text-align: center;
-  padding: 15px 20px;
+  padding: 0 40px;
   color: white;
-  border-bottom: 1px solid #333333;
-  height: 60px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+  height: 90px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.header-left,
+.header-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  justify-content: flex-end;
+}
+
+.header-center {
+  flex: 2;
+  display: flex;
   justify-content: center;
+  align-items: center;
+}
+
+.quote-container-main {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 10px 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(5px);
+}
+
+#daily-quote-text {
+  font-size: 0.9rem;
+  color: #ffffff;
+  font-style: italic;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.4;
+  opacity: 1 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  flex: 1;
+}
+
+#refresh-quote-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+  padding: 5px;
+}
+
+#refresh-quote-btn:hover {
+  color: #fff;
+  transform: rotate(180deg);
+}
+
+#refresh-quote-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
 }
 
 .current-status {
@@ -82,7 +166,7 @@ body {
 
 /* New Dashboard Layout - 2 Rows, 100% Viewport */
 .dashboard-container-new {
-  height: calc(100vh - 60px);
+  height: calc(100vh - 90px);
   display: flex;
   flex-direction: column;
   padding: 20px;
@@ -91,14 +175,16 @@ body {
 }
 
 .top-row {
-  height: 50%;
+  flex: 1;
+  min-height: 0; /* Allow shrinking */
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
 }
 
 .bottom-row {
-  height: 50%;
+  flex: 1;
+  min-height: 0; /* Allow shrinking */
   display: flex;
 }
 
@@ -442,13 +528,24 @@ body {
 .shortcuts-grid-new {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 15px;
   padding: 10px 10px;
   margin: 0 10px;
   min-height: 100px;
-  max-height: 200px;
+  max-height: none; /* Remove fixed height constraint */
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #555555 transparent;
+}
+
+.shortcuts-grid-new::-webkit-scrollbar {
+  width: 6px;
+}
+
+.shortcuts-grid-new::-webkit-scrollbar-thumb {
+  background-color: #555555;
+  border-radius: 10px;
 }
 
 /* Empty state for shortcuts */
@@ -488,6 +585,39 @@ body {
 /* Simple minimalistic hover effect - just enlarge */
 .shortcut-card-new:hover {
   transform: scale(1.05);
+}
+
+.shortcut-card-new.dragging {
+  opacity: 0.4;
+  cursor: grabbing !important;
+  transform: scale(0.95);
+  border-style: dashed;
+}
+
+.shortcut-card-new.drag-over {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.shortcut-card-new.drag-over::before {
+  content: "DROP HERE";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px dashed #ffffff;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  z-index: 100;
+  pointer-events: none;
 }
 
 .shortcut-favicon {
@@ -963,18 +1093,32 @@ body {
   }
 
   .shortcuts-grid-new {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
     gap: 10px;
   }
 
   .shortcut-card-new {
-    padding: 12px 8px;
-    min-height: 70px;
+    padding: 10px 5px;
+    min-height: 65px;
   }
 
   .shortcut-favicon {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .shortcut-label {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .shortcuts-grid-new {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  }
+  .shortcut-card-new {
+    min-height: 60px;
+    padding: 8px 4px;
   }
 }
 

@@ -5,7 +5,7 @@ class BackgroundService {
   constructor() {
     this.reminderAlarmName = "workingModeReminder";
     this.isWorkingMode = false;
-    this.reminderInterval = 60; // Fixed to 60 minutes (1 hour)
+    this.reminderInterval = 45; // Set to 45 minutes as requested
     this.globalTimerStartTime = null;
     this.init();
   }
@@ -141,11 +141,11 @@ class BackgroundService {
 
     // Create repeating alarm every hour (60 minutes)
     await chrome.alarms.create(this.reminderAlarmName, {
-      delayInMinutes: 60,
-      periodInMinutes: 60,
+      delayInMinutes: 45,
+      periodInMinutes: 45,
     });
 
-    console.log("Working mode reminders set up for every 60 minutes");
+    console.log("Working mode reminders set up for every 45 minutes");
   }
 
   async clearWorkingModeReminders() {
@@ -170,15 +170,11 @@ class BackgroundService {
     // Create notification with sound
     const notificationId = `reminder-${Date.now()}`;
 
-    await chrome.notifications.create(notificationId, {
-      type: "basic",
-      iconUrl: "icons/icon48.png",
-      title: "🏃‍♂️ HEALTH REMINDER",
-      message: "Time for a health break! Stand up, stretch, and move around.",
-      buttons: [{ title: "Got it! ✅" }],
-      requireInteraction: true,
-      priority: 2,
-    });
+    // Open new tab page and trigger break modal to bypass DND
+    const newTabUrl = chrome.runtime.getURL("newtab.html") + "?showBreak=true";
+    await chrome.tabs.create({ url: newTabUrl, active: true });
+
+    console.log("Break alert triggered: opened new tab at", newTabUrl);
 
     // Handle notification clicks
     chrome.notifications.onButtonClicked.addListener((notifId, buttonIndex) => {
@@ -236,7 +232,7 @@ class BackgroundService {
     ]);
     this.isWorkingMode = result.isWorkingMode || false;
     this.globalTimerStartTime = result.globalTimerStartTime || null;
-    this.reminderInterval = 60; // Always 60 minutes (1 hour)
+    this.reminderInterval = 45; // Always 45 minutes (as requested)
 
     // If working mode was active, restart reminders and timer
     if (this.isWorkingMode) {

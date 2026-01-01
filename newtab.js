@@ -166,11 +166,12 @@ class ProductivityDashboard {
       yearPercentage: null,
       breakCountdown: null,
     };
+    this.quotes = [];
 
     this.init();
   }
 
-  init() {
+  async init() {
     this.setupGreeting();
     this.setupEventListeners();
     this.initializeAnimatedNumbers();
@@ -178,6 +179,8 @@ class ProductivityDashboard {
     this.updateDaysRemaining();
     this.loadShortcuts();
     this.initializeSimpleHealthReminder();
+    this.checkBreakTrigger();
+    await this.loadQuotes();
 
     // Clean up when page unloads
     window.addEventListener("beforeunload", () => {
@@ -273,7 +276,7 @@ class ProductivityDashboard {
       const now = new Date();
 
       const timeStr = now.toLocaleTimeString("en-US", {
-        hour12: false,
+        hour12: true,
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
@@ -334,7 +337,7 @@ class ProductivityDashboard {
         // No timer active, show default state
         this.setTimerDisplay("--:--", "#ffffff");
         this.setHealthTip(
-          "Click here to start health reminders (60-minute intervals)"
+          "Click here to start health reminders (45-minute intervals)"
         );
         console.log("No active timer found in storage");
       }
@@ -374,7 +377,7 @@ class ProductivityDashboard {
         this.setHealthTip("Error: " + response.error);
       } else {
         // No valid response
-        this.setTimerDisplay("60:00", "#ffffff");
+        this.setTimerDisplay("45:00", "#ffffff");
         this.setHealthTip(
           "Click the extension icon to enable health reminders"
         );
@@ -424,7 +427,7 @@ class ProductivityDashboard {
           this.healthReminder.globalStartTime = null;
           this.setTimerDisplay("--:--", "#ffffff");
           this.setHealthTip(
-            "Click here to start health reminders (60-minute intervals)"
+            "Click here to start health reminders (45-minute intervals)"
           );
         }
       } catch (error) {
@@ -447,7 +450,7 @@ class ProductivityDashboard {
     const now = Date.now();
     const startTime = this.healthReminder.globalStartTime;
     const elapsed = now - startTime;
-    const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+    const oneHour = 45 * 60 * 1000; // 45 minutes in milliseconds
 
     console.log("Timer calculation:", {
       now: new Date(now),
@@ -459,7 +462,7 @@ class ProductivityDashboard {
     // Handle case where elapsed time is negative (clock issues)
     if (elapsed < 0) {
       console.warn("Timer elapsed time is negative, resetting");
-      this.setTimerDisplay("60:00", "#ffffff");
+      this.setTimerDisplay("45:00", "#ffffff");
       return;
     }
 
@@ -483,7 +486,7 @@ class ProductivityDashboard {
     // Ensure remaining time is valid
     if (remaining <= 0 || remaining > oneHour) {
       console.warn("Invalid remaining time calculated:", remaining);
-      this.setTimerDisplay("60:00", "#ffffff");
+      this.setTimerDisplay("45:00", "#ffffff");
       return;
     }
 
@@ -500,6 +503,82 @@ class ProductivityDashboard {
     );
 
     console.log("Display updated:", timeString);
+  }
+
+  // Check if break needs to be shown (from URL params)
+  checkBreakTrigger() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("showBreak") === "true") {
+      this.showBreakModal();
+      // Remove the param from URL without refreshing
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
+
+  showBreakModal() {
+    const modal = document.getElementById("break-reminder-modal");
+    if (modal) {
+      modal.classList.remove("hidden");
+
+      // Play alert sound
+      try {
+        const audio = new Audio(
+          "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
+        );
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+      } catch (e) {
+        console.log("Could not play notification sound");
+      }
+
+      // Initialize break countdown (default 2:00)
+      let secondsRemaining = 120;
+      const countdownEl = document.getElementById("break-countdown");
+
+      if (this.healthReminder.breakTimer) {
+        clearInterval(this.healthReminder.breakTimer);
+      }
+
+      this.healthReminder.breakTimer = setInterval(() => {
+        secondsRemaining--;
+        const mins = Math.floor(secondsRemaining / 60);
+        const secs = secondsRemaining % 60;
+        const timeStr = `${mins}:${secs.toString().padStart(2, "0")}`;
+
+        if (this.animatedNumbers.breakCountdown) {
+          this.animatedNumbers.breakCountdown.setValue(timeStr);
+        } else if (countdownEl) {
+          countdownEl.textContent = timeStr;
+        }
+
+        if (secondsRemaining <= 0) {
+          clearInterval(this.healthReminder.breakTimer);
+        }
+      }, 1000);
+    }
+  }
+
+  startBreakPhase() {
+    // Already started in showBreakModal, adding visual indicators
+    const modal = document.querySelector(".break-modal");
+    if (modal) {
+      modal.classList.add("break-active");
+    }
+    // You could add logic here to track actual break usage
+  }
+
+  skipBreakPhase() {
+    const modal = document.getElementById("break-reminder-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    if (this.healthReminder.breakTimer) {
+      clearInterval(this.healthReminder.breakTimer);
+    }
+  }
+
+  returnFromRest() {
+    // Logic for returning from break
   }
 
   // Add method to manually start timer
@@ -524,17 +603,45 @@ class ProductivityDashboard {
       // Update display immediately
       this.updateDisplayFromGlobalTimer();
 
-      // Start sync intervals
+      // Start sycn intervals
       this.startGlobalTimerSync();
 
       // Start hourly notifications
       this.scheduleHourlyNotifications();
 
       this.setHealthTip(
-        "Health reminders active! You'll get notified every hour on the hour."
+        "Health reminders active! You'll get notified every 45 minutes."
       );
     } catch (error) {
       console.error("Failed to start timer:", error);
+    }
+  }
+
+  async loadQuotes() {
+    try {
+      const response = await fetch(chrome.runtime.getURL("quotes.json"));
+      const data = await response.json();
+      this.quotes = data.quotes;
+      this.displayRandomQuote();
+    } catch (error) {
+      console.error("Failed to load quotes:", error);
+      this.quotes = ["Small steps lead to big results."];
+      this.displayRandomQuote();
+    }
+  }
+
+  displayRandomQuote() {
+    const quoteEl = document.getElementById("daily-quote-text");
+    if (quoteEl && this.quotes.length > 0) {
+      const randomIndex = Math.floor(Math.random() * this.quotes.length);
+      const quote = this.quotes[randomIndex];
+
+      // Animation class refresh
+      quoteEl.classList.remove("fade-in");
+      void quoteEl.offsetWidth; // Trigger reflow
+      quoteEl.classList.add("fade-in");
+
+      quoteEl.textContent = `"${quote}"`;
     }
   }
 
@@ -547,7 +654,7 @@ class ProductivityDashboard {
     // Set up hourly notifications
     this.healthReminder.notificationTimer = setInterval(() => {
       this.showHealthNotification();
-    }, 60 * 60 * 1000); // 60 minutes
+    }, 45 * 60 * 1000); // 45 minutes
 
     console.log("Hourly notifications scheduled");
   }
@@ -606,8 +713,8 @@ class ProductivityDashboard {
 
   updateDaysRemaining() {
     const now = new Date();
-    const endOfYear = new Date(2025, 11, 31, 23, 59, 59, 999); // December 31, 2025
-    const startOfYear = new Date(2025, 0, 1); // January 1, 2025
+    const endOfYear = new Date(2026, 11, 31, 23, 59, 59, 999); // December 31, 2026
+    const startOfYear = new Date(2026, 0, 1); // January 1, 2026
 
     const totalDays = Math.ceil(
       (endOfYear - startOfYear) / (1000 * 60 * 60 * 24)
@@ -661,6 +768,14 @@ class ProductivityDashboard {
         }
       });
       healthTip.style.cursor = "pointer";
+    }
+
+    // New quote refresh button
+    const refreshQuoteBtn = document.getElementById("refresh-quote-btn");
+    if (refreshQuoteBtn) {
+      refreshQuoteBtn.addEventListener("click", () =>
+        this.displayRandomQuote()
+      );
     }
 
     // Health reminder modal controls
@@ -1093,7 +1208,18 @@ class ProductivityDashboard {
       const card = document.createElement("a");
       card.className = "shortcut-card-new custom-shortcut-new";
       card.href = shortcut.url;
+      card.draggable = true;
       // Removed target="_blank" so links open in same tab
+
+      // Drag and Drop event listeners
+      card.addEventListener("dragstart", (e) =>
+        this.handleDragStart(e, shortcut)
+      );
+      card.addEventListener("dragover", (e) => this.handleDragOver(e));
+      card.addEventListener("dragenter", (e) => this.handleDragEnter(e));
+      card.addEventListener("dragleave", (e) => this.handleDragLeave(e));
+      card.addEventListener("drop", (e) => this.handleDrop(e, shortcut));
+      card.addEventListener("dragend", (e) => this.handleDragEnd(e));
 
       const domain = new URL(shortcut.url).hostname;
 
@@ -1188,10 +1314,46 @@ class ProductivityDashboard {
     // Hide any existing context menu first
     this.hideContextMenu();
 
-    // Position and show the context menu
-    contextMenu.style.left = `${event.pageX}px`;
-    contextMenu.style.top = `${event.pageY}px`;
+    // Show the menu first so we can measure it
     contextMenu.classList.remove("hidden");
+
+    // Get menu dimensions
+    const menuWidth = contextMenu.offsetWidth;
+    const menuHeight = contextMenu.offsetHeight;
+
+    // Get viewport dimensions
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    // Calculate position
+    let left = event.pageX;
+    let top = event.pageY;
+
+    // Boundary check for horizontal
+    if (left + menuWidth > windowWidth) {
+      left = windowWidth - menuWidth - 10; // 10px padding from edge
+    }
+
+    // Boundary check for vertical
+    if (top + menuHeight > windowHeight) {
+      top = windowHeight - menuHeight - 10; // 10px padding from edge
+    }
+
+    // Adjust for scroll position if necessary (though position is fixed)
+    // Since it's position: fixed, we use clientX/Y instead of pageX/Y
+    left = event.clientX;
+    top = event.clientY;
+
+    // Recalculate with client coords for fixed positioning
+    if (left + menuWidth > windowWidth) {
+      left = windowWidth - menuWidth - 10;
+    }
+    if (top + menuHeight > windowHeight) {
+      top = windowHeight - menuHeight - 10;
+    }
+
+    contextMenu.style.left = `${left}px`;
+    contextMenu.style.top = `${top}px`;
 
     // Store the current shortcut reference
     this.currentContextShortcut = shortcut;
@@ -1333,8 +1495,21 @@ class ProductivityDashboard {
       (s) => s.id === this.currentContextShortcut.id
     );
     if (shortcutIndex !== -1) {
+      const oldUrl = this.shortcuts[shortcutIndex].url;
       this.shortcuts[shortcutIndex].name = newName;
       this.shortcuts[shortcutIndex].url = newUrl;
+
+      // If URL changed, try to fetch new favicon
+      if (oldUrl !== newUrl) {
+        try {
+          const newFavicon = await this.fetchFaviconFromPageSource(newUrl);
+          if (newFavicon) {
+            this.shortcuts[shortcutIndex].faviconUrl = newFavicon;
+          }
+        } catch (error) {
+          console.warn("Failed to auto-update favicon on edit:", error);
+        }
+      }
 
       await this.saveShortcuts();
       this.renderCustomShortcuts();
@@ -1396,6 +1571,72 @@ class ProductivityDashboard {
         }
       }, 300);
     }, 3000);
+  }
+
+  // Drag and Drop Handlers
+  handleDragStart(e, shortcut) {
+    this.draggedShortcut = shortcut;
+    e.currentTarget.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", shortcut.id);
+
+    // Create a ghost image if needed, but the default is usually fine
+    console.log("Drag started for shortcut:", shortcut.name);
+  }
+
+  handleDragOver(e) {
+    if (e.preventDefault) {
+      e.preventDefault(); // Necessary. Allows us to drop.
+    }
+    e.dataTransfer.dropEffect = "move";
+    return false;
+  }
+
+  handleDragEnter(e) {
+    e.currentTarget.classList.add("drag-over");
+  }
+
+  handleDragLeave(e) {
+    e.currentTarget.classList.remove("drag-over");
+  }
+
+  async handleDrop(e, targetShortcut) {
+    if (e.stopPropagation) {
+      e.stopPropagation(); // Stops some browsers from redirecting.
+    }
+
+    if (this.draggedShortcut && this.draggedShortcut.id !== targetShortcut.id) {
+      console.log(
+        `Dropping ${this.draggedShortcut.name} onto ${targetShortcut.name}`
+      );
+
+      const fromIndex = this.shortcuts.findIndex(
+        (s) => s.id === this.draggedShortcut.id
+      );
+      const toIndex = this.shortcuts.findIndex(
+        (s) => s.id === targetShortcut.id
+      );
+
+      if (fromIndex !== -1 && toIndex !== -1) {
+        // Reorder the array
+        const [movedItem] = this.shortcuts.splice(fromIndex, 1);
+        this.shortcuts.splice(toIndex, 0, movedItem);
+
+        // Save and re-render
+        await this.saveShortcuts();
+        this.renderCustomShortcuts();
+        this.showNotification("Shortcuts reordered", "success");
+      }
+    }
+
+    return false;
+  }
+
+  handleDragEnd(e) {
+    e.currentTarget.classList.remove("dragging");
+    const cards = document.querySelectorAll(".shortcut-card-new");
+    cards.forEach((card) => card.classList.remove("drag-over"));
+    this.draggedShortcut = null;
   }
 
   // Debug method to check storage status
