@@ -1012,6 +1012,27 @@ body {
   background: #555555;
 }
 
+.tertiary-btn {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid #444444;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  color: #888888;
+}
+
+.tertiary-btn:hover {
+  background: #2a2a2a;
+  color: #cccccc;
+  border-color: #555555;
+}
+
 /* Button Loading States */
 .primary-btn:disabled {
   background: #666666;

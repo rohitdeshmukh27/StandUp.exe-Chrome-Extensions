@@ -436,57 +436,62 @@ class ProductivityDashboard {
     }, 30000);
   }
 
-  updateDisplayFromGlobalTimer() {
+  async updateDisplayFromGlobalTimer() {
     if (!this.healthReminder.globalStartTime) {
       // If no timer is active, show a default state and offer to start one
       this.setTimerDisplay("--:--", "#ffffff");
       this.setHealthTip(
-        "Click here to start health reminders (60-minute intervals)"
+        "Click here to start health reminders (45-minute intervals)"
       );
       console.log("No global timer start time available");
       return;
     }
 
+    // Read timerDuration from storage to know if it's 45-min or 5-min timer
+    const storageResult = await chrome.storage.local.get(["timerDuration"]);
+    const timerDurationMinutes = storageResult.timerDuration || 45;
+    const timerDurationMs = timerDurationMinutes * 60 * 1000;
+
     const now = Date.now();
     const startTime = this.healthReminder.globalStartTime;
     const elapsed = now - startTime;
-    const oneHour = 45 * 60 * 1000; // 45 minutes in milliseconds
 
     console.log("Timer calculation:", {
       now: new Date(now),
       startTime: new Date(startTime),
       elapsed: elapsed,
       elapsedMinutes: Math.floor(elapsed / 60000),
+      timerDuration: timerDurationMinutes,
     });
 
     // Handle case where elapsed time is negative (clock issues)
     if (elapsed < 0) {
       console.warn("Timer elapsed time is negative, resetting");
-      this.setTimerDisplay("45:00", "#ffffff");
+      this.setTimerDisplay(`${timerDurationMinutes}:00`, "#ffffff");
       return;
     }
 
-    // Calculate how many complete hours have passed
-    const completedHours = Math.floor(elapsed / oneHour);
+    // Calculate how many complete cycles have passed
+    const completedCycles = Math.floor(elapsed / timerDurationMs);
 
-    // Calculate time into current hour
-    const timeIntoCurrentHour = elapsed - completedHours * oneHour;
+    // Calculate time into current cycle
+    const timeIntoCurrentCycle = elapsed - completedCycles * timerDurationMs;
 
-    // Calculate time remaining until next hour
-    const remaining = oneHour - timeIntoCurrentHour;
+    // Calculate time remaining until next cycle
+    const remaining = timerDurationMs - timeIntoCurrentCycle;
 
     console.log("Detailed calculation:", {
-      completedHours,
-      timeIntoCurrentHour,
-      timeIntoCurrentHourMinutes: Math.floor(timeIntoCurrentHour / 60000),
+      completedCycles,
+      timeIntoCurrentCycle,
+      timeIntoCurrentCycleMinutes: Math.floor(timeIntoCurrentCycle / 60000),
       remaining,
       remainingMinutes: Math.floor(remaining / 60000),
     });
 
     // Ensure remaining time is valid
-    if (remaining <= 0 || remaining > oneHour) {
+    if (remaining <= 0 || remaining > timerDurationMs) {
       console.warn("Invalid remaining time calculated:", remaining);
-      this.setTimerDisplay("45:00", "#ffffff");
+      this.setTimerDisplay(`${timerDurationMinutes}:00`, "#ffffff");
       return;
     }
 
@@ -564,7 +569,11 @@ class ProductivityDashboard {
     if (modal) {
       modal.classList.add("break-active");
     }
-    // You could add logic here to track actual break usage
+    // Show the "I'm Back" button section
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "flex";
+    }
   }
 
   skipBreakPhase() {
@@ -575,10 +584,94 @@ class ProductivityDashboard {
     if (this.healthReminder.breakTimer) {
       clearInterval(this.healthReminder.breakTimer);
     }
+    // Restart the timer for the next 45-minute cycle
+    this.restartTimer();
+  }
+
+  async take5MinBreak() {
+    const modal = document.getElementById("break-reminder-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    if (this.healthReminder.breakTimer) {
+      clearInterval(this.healthReminder.breakTimer);
+    }
+
+    try {
+      // Send message to background to set 5-minute timer
+      await chrome.runtime.sendMessage({ action: "set5MinTimer" });
+
+      console.log("5-minute timer requested from background service");
+
+      // Re-sync display after background confirms
+      const result = await chrome.storage.local.get([
+        "globalTimerStartTime",
+        "timerDuration",
+      ]);
+
+      if (result.globalTimerStartTime) {
+        this.healthReminder.globalStartTime = result.globalTimerStartTime;
+        this.updateDisplayFromGlobalTimer();
+      }
+
+      this.setHealthTip(
+        "Taking a quick 5-minute break! Timer will remind you again soon."
+      );
+    } catch (error) {
+      console.error("Failed to set 5-min break timer:", error);
+      this.setHealthTip("Error setting break timer. Please try again.");
+    }
   }
 
   returnFromRest() {
-    // Logic for returning from break
+    // Close the break modal and hide rest actions
+    const modal = document.getElementById("break-reminder-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+      modal.querySelector(".break-modal")?.classList.remove("break-active");
+    }
+
+    const restActions = document.getElementById("rest-actions");
+    if (restActions) {
+      restActions.style.display = "none";
+    }
+
+    if (this.healthReminder.breakTimer) {
+      clearInterval(this.healthReminder.breakTimer);
+    }
+
+    // Restart the timer for the next 45-minute cycle
+    this.restartTimer();
+  }
+
+  async restartTimer() {
+    try {
+      // Send message to background to restart the Chrome Alarm
+      await chrome.runtime.sendMessage({ action: "restartTimer" });
+
+      console.log("Timer restart requested from background service");
+
+      // Re-sync display after background confirms
+      const result = await chrome.storage.local.get([
+        "globalTimerStartTime",
+        "timerDuration",
+      ]);
+
+      if (result.globalTimerStartTime) {
+        this.healthReminder.globalStartTime = result.globalTimerStartTime;
+        this.updateDisplayFromGlobalTimer();
+      }
+
+      // Ensure sync intervals are running
+      if (!this.healthReminder.syncInterval) {
+        this.startGlobalTimerSync();
+      }
+
+      this.setHealthTip("Timer restarted! Next break in 45 minutes.");
+    } catch (error) {
+      console.error("Failed to restart timer:", error);
+      this.setHealthTip("Error restarting timer. Please try again.");
+    }
   }
 
   // Add method to manually start timer
@@ -785,6 +878,12 @@ class ProductivityDashboard {
     document
       .getElementById("skip-break")
       .addEventListener("click", () => this.skipBreakPhase());
+
+    // 5-minute break option
+    const take5MinBtn = document.getElementById("take-5min-break");
+    if (take5MinBtn) {
+      take5MinBtn.addEventListener("click", () => this.take5MinBreak());
+    }
 
     // "I'm Back" button for rest state
     document

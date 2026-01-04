@@ -63,6 +63,16 @@ class BackgroundService {
           sendResponse(timerState);
           break;
 
+        case "restartTimer":
+          await this.restartTimerFromNow();
+          sendResponse({ success: true });
+          break;
+
+        case "set5MinTimer":
+          await this.set5MinuteTimer();
+          sendResponse({ success: true });
+          break;
+
         default:
           console.log("Unknown message action:", message.action);
           sendResponse({ error: "Unknown action" });
@@ -116,6 +126,7 @@ class BackgroundService {
     const result = await chrome.storage.local.get([
       "isWorkingMode",
       "globalTimerStartTime",
+      "timerDuration",
     ]);
 
     this.isWorkingMode = result.isWorkingMode || false;
@@ -125,12 +136,14 @@ class BackgroundService {
     console.log("Background timer state:", {
       isActive: this.isWorkingMode,
       startTime: this.globalTimerStartTime,
+      timerDuration: result.timerDuration || 45,
       currentTime: Date.now(),
     });
 
     return {
       isActive: this.isWorkingMode,
       startTime: this.globalTimerStartTime,
+      timerDuration: result.timerDuration || 45,
       currentTime: Date.now(),
     };
   }
@@ -241,6 +254,48 @@ class BackgroundService {
         await this.initializeGlobalTimer();
       }
     }
+  }
+
+  async restartTimerFromNow() {
+    // Clear existing alarm and create new one starting now
+    await chrome.alarms.clear(this.reminderAlarmName);
+    await chrome.alarms.create(this.reminderAlarmName, {
+      delayInMinutes: 45,
+      periodInMinutes: 45,
+    });
+
+    const now = Date.now();
+    this.globalTimerStartTime = now;
+
+    await chrome.storage.local.set({
+      isWorkingMode: true,
+      globalTimerStartTime: now,
+      timerDuration: 45,
+    });
+
+    console.log("Timer restarted from now:", new Date(now));
+    console.log("Next alarm in 45 minutes");
+  }
+
+  async set5MinuteTimer() {
+    // Clear existing alarm and create a 5-minute one-shot alarm
+    await chrome.alarms.clear(this.reminderAlarmName);
+    await chrome.alarms.create(this.reminderAlarmName, {
+      delayInMinutes: 5,
+      // No periodInMinutes - one-shot alarm
+    });
+
+    const now = Date.now();
+    this.globalTimerStartTime = now;
+
+    await chrome.storage.local.set({
+      isWorkingMode: true,
+      globalTimerStartTime: now,
+      timerDuration: 5,
+    });
+
+    console.log("5-minute timer set:", new Date(now));
+    console.log("Next alarm in 5 minutes");
   }
 
   // Performance optimization: Clean up unused alarms
