@@ -180,44 +180,8 @@
       </main>
     </div>
 
-    <!-- Break Reminder Modal -->
-    <div id="break-reminder-modal" class="modal-overlay hidden">
-      <div class="modal-content-large break-modal">
-        <div class="break-icon">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="m22 22-5-5" />
-            <path d="m17 22 5-5" />
-          </svg>
-        </div>
-        <h3>Time for a Health Break!</h3>
-        <p>
-          You've been sitting for more than 45 minutes.<br />
-          Please take a 2-3 minute walk to stay healthy and productive.
-        </p>
-        <div class="break-timer">
-          <div id="break-countdown">2:00</div>
-          <div class="break-timer-label">Recommended break time</div>
-        </div>
-        <div class="modal-buttons">
-          <button id="start-break" class="primary-btn">
-            Start 2-Min Break
-          </button>
-          <button id="take-5min-break" class="secondary-btn">
-            5-Min Break & Check Back
-          </button>
-          <button id="skip-break" class="tertiary-btn">
-            Skip & Restart Timer
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- Gentle Toast Notification -->
+    <div id="gentle-toast" class="toast hidden"></div>
 
     <!-- Add Shortcut Modal -->
     <div id="shortcut-modal-large" class="modal-overlay hidden">

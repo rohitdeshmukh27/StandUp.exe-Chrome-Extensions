@@ -513,165 +513,53 @@ class ProductivityDashboard {
   // Check if break needs to be shown (from URL params)
   checkBreakTrigger() {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("showBreak") === "true") {
-      this.showBreakModal();
+    if (
+      urlParams.get("showBreak") === "true" ||
+      urlParams.get("showToast") === "true"
+    ) {
+      this.showGentleToast();
       // Remove the param from URL without refreshing
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
 
-  showBreakModal() {
-    const modal = document.getElementById("break-reminder-modal");
-    if (modal) {
-      modal.classList.remove("hidden");
+  showGentleToast() {
+    const toast = document.getElementById("gentle-toast");
+    if (!toast) return;
 
-      // Play alert sound
-      try {
-        const audio = new Audio(
-          "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
-        );
-        audio.volume = 0.5;
-        audio.play().catch(() => {});
-      } catch (e) {
-        console.log("Could not play notification sound");
-      }
+    // Set toast content
+    toast.innerHTML = `
+      <div class="toast-icon">⏰</div>
+      <div class="toast-content">
+        <div class="toast-title">Time to Move!</div>
+        <div class="toast-message">You've been sitting for 45 minutes. Take a moment to stretch.</div>
+      </div>
+    `;
 
-      // Initialize break countdown (default 2:00)
-      let secondsRemaining = 120;
-      const countdownEl = document.getElementById("break-countdown");
+    // Show toast with animation
+    toast.classList.remove("hidden");
+    toast.classList.add("show");
 
-      if (this.healthReminder.breakTimer) {
-        clearInterval(this.healthReminder.breakTimer);
-      }
-
-      this.healthReminder.breakTimer = setInterval(() => {
-        secondsRemaining--;
-        const mins = Math.floor(secondsRemaining / 60);
-        const secs = secondsRemaining % 60;
-        const timeStr = `${mins}:${secs.toString().padStart(2, "0")}`;
-
-        if (this.animatedNumbers.breakCountdown) {
-          this.animatedNumbers.breakCountdown.setValue(timeStr);
-        } else if (countdownEl) {
-          countdownEl.textContent = timeStr;
-        }
-
-        if (secondsRemaining <= 0) {
-          clearInterval(this.healthReminder.breakTimer);
-        }
-      }, 1000);
-    }
-  }
-
-  startBreakPhase() {
-    // Already started in showBreakModal, adding visual indicators
-    const modal = document.querySelector(".break-modal");
-    if (modal) {
-      modal.classList.add("break-active");
-    }
-    // Show the "I'm Back" button section
-    const restActions = document.getElementById("rest-actions");
-    if (restActions) {
-      restActions.style.display = "flex";
-    }
-  }
-
-  skipBreakPhase() {
-    const modal = document.getElementById("break-reminder-modal");
-    if (modal) {
-      modal.classList.add("hidden");
-    }
-    if (this.healthReminder.breakTimer) {
-      clearInterval(this.healthReminder.breakTimer);
-    }
-    // Restart the timer for the next 45-minute cycle
-    this.restartTimer();
-  }
-
-  async take5MinBreak() {
-    const modal = document.getElementById("break-reminder-modal");
-    if (modal) {
-      modal.classList.add("hidden");
-    }
-    if (this.healthReminder.breakTimer) {
-      clearInterval(this.healthReminder.breakTimer);
-    }
-
+    // Play gentle notification sound
     try {
-      // Send message to background to set 5-minute timer
-      await chrome.runtime.sendMessage({ action: "set5MinTimer" });
-
-      console.log("5-minute timer requested from background service");
-
-      // Re-sync display after background confirms
-      const result = await chrome.storage.local.get([
-        "globalTimerStartTime",
-        "timerDuration",
-      ]);
-
-      if (result.globalTimerStartTime) {
-        this.healthReminder.globalStartTime = result.globalTimerStartTime;
-        this.updateDisplayFromGlobalTimer();
-      }
-
-      this.setHealthTip(
-        "Taking a quick 5-minute break! Timer will remind you again soon."
+      const audio = new Audio(
+        "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
       );
-    } catch (error) {
-      console.error("Failed to set 5-min break timer:", error);
-      this.setHealthTip("Error setting break timer. Please try again.");
-    }
-  }
-
-  returnFromRest() {
-    // Close the break modal and hide rest actions
-    const modal = document.getElementById("break-reminder-modal");
-    if (modal) {
-      modal.classList.add("hidden");
-      modal.querySelector(".break-modal")?.classList.remove("break-active");
+      audio.volume = 0.3;
+      audio.play().catch(() => {});
+    } catch (e) {
+      console.log("Could not play notification sound");
     }
 
-    const restActions = document.getElementById("rest-actions");
-    if (restActions) {
-      restActions.style.display = "none";
-    }
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => {
+        toast.classList.add("hidden");
+      }, 300); // Wait for fade-out animation
+    }, 10000);
 
-    if (this.healthReminder.breakTimer) {
-      clearInterval(this.healthReminder.breakTimer);
-    }
-
-    // Restart the timer for the next 45-minute cycle
-    this.restartTimer();
-  }
-
-  async restartTimer() {
-    try {
-      // Send message to background to restart the Chrome Alarm
-      await chrome.runtime.sendMessage({ action: "restartTimer" });
-
-      console.log("Timer restart requested from background service");
-
-      // Re-sync display after background confirms
-      const result = await chrome.storage.local.get([
-        "globalTimerStartTime",
-        "timerDuration",
-      ]);
-
-      if (result.globalTimerStartTime) {
-        this.healthReminder.globalStartTime = result.globalTimerStartTime;
-        this.updateDisplayFromGlobalTimer();
-      }
-
-      // Ensure sync intervals are running
-      if (!this.healthReminder.syncInterval) {
-        this.startGlobalTimerSync();
-      }
-
-      this.setHealthTip("Timer restarted! Next break in 45 minutes.");
-    } catch (error) {
-      console.error("Failed to restart timer:", error);
-      this.setHealthTip("Error restarting timer. Please try again.");
-    }
+    console.log("Gentle toast notification shown");
   }
 
   // Add method to manually start timer
@@ -870,25 +758,6 @@ class ProductivityDashboard {
         this.displayRandomQuote()
       );
     }
-
-    // Health reminder modal controls
-    document
-      .getElementById("start-break")
-      .addEventListener("click", () => this.startBreakPhase());
-    document
-      .getElementById("skip-break")
-      .addEventListener("click", () => this.skipBreakPhase());
-
-    // 5-minute break option
-    const take5MinBtn = document.getElementById("take-5min-break");
-    if (take5MinBtn) {
-      take5MinBtn.addEventListener("click", () => this.take5MinBreak());
-    }
-
-    // "I'm Back" button for rest state
-    document
-      .getElementById("im-back-btn")
-      .addEventListener("click", () => this.returnFromRest());
 
     // Add keyboard shortcuts for quick access
     document.addEventListener("keydown", (e) => {

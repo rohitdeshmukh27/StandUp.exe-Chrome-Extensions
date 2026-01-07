@@ -63,16 +63,6 @@ class BackgroundService {
           sendResponse(timerState);
           break;
 
-        case "restartTimer":
-          await this.restartTimerFromNow();
-          sendResponse({ success: true });
-          break;
-
-        case "set5MinTimer":
-          await this.set5MinuteTimer();
-          sendResponse({ success: true });
-          break;
-
         default:
           console.log("Unknown message action:", message.action);
           sendResponse({ error: "Unknown action" });
@@ -102,6 +92,7 @@ class BackgroundService {
       this.globalTimerStartTime = Date.now();
       await chrome.storage.local.set({
         globalTimerStartTime: this.globalTimerStartTime,
+        timerDuration: 45, // 45 minutes
       });
       console.log(
         "Global timer initialized at:",
@@ -180,61 +171,84 @@ class BackgroundService {
       return;
     }
 
-    // Create notification with sound
+    // Create gentle notification
     const notificationId = `reminder-${Date.now()}`;
 
-    // Open new tab page and trigger break modal to bypass DND
-    const newTabUrl = chrome.runtime.getURL("newtab.html") + "?showBreak=true";
-    await chrome.tabs.create({ url: newTabUrl, active: true });
-
-    console.log("Break alert triggered: opened new tab at", newTabUrl);
-
-    // Handle notification clicks
-    chrome.notifications.onButtonClicked.addListener((notifId, buttonIndex) => {
-      if (notifId === notificationId) {
-        chrome.notifications.clear(notificationId);
-      }
+    chrome.notifications.create(notificationId, {
+      type: "basic",
+      iconUrl: "icons/icon48.png",
+      title: "⏰ Time to Move!",
+      message:
+        "You've been sitting for 45 minutes. Take a moment to stretch and move around.",
+      priority: 1,
+      requireInteraction: false,
     });
 
-    // Auto-clear notification after 30 seconds if no interaction
+    console.log("Gentle reminder notification shown");
+
+    // Send message to all tabs to show toast notification
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach((tab) => {
+        chrome.tabs.sendMessage(tab.id, { action: "showToast" }).catch(() => {
+          // Tab might not have content script, ignore error
+        });
+      });
+    });
+
+    // Also open a new tab with the toast if no tabs are open
+    const newTabUrl = chrome.runtime.getURL("newtab.html") + "?showToast=true";
+    await chrome.tabs.create({ url: newTabUrl, active: true });
+
+    // Auto-clear notification after 10 seconds
     setTimeout(() => {
       chrome.notifications.clear(notificationId);
-    }, 30000);
+    }, 10000);
 
-    // Send message to popup if it's open
-    try {
-      chrome.runtime.sendMessage({ action: "reminderTriggered" });
-    } catch (error) {
-      // Popup might not be open, that's fine
-    }
+    // Timer automatically continues due to periodInMinutes in alarm
+    console.log("Timer will auto-restart in 45 minutes");
   }
 
   async onStartup() {
     console.log("Extension started");
     await this.loadSettings();
+
+    // Ensure timer is always active
+    if (!this.isWorkingMode) {
+      await chrome.storage.local.set({ isWorkingMode: true });
+      this.isWorkingMode = true;
+      await this.initializeGlobalTimer();
+      await this.setupWorkingModeReminders();
+    }
   }
 
   async onInstalled(details) {
     console.log("Extension installed/updated:", details.reason);
 
-    // Set default settings
+    // Auto-enable working mode and start timer
     await chrome.storage.local.set({
-      isWorkingMode: false,
+      isWorkingMode: true,
       shortcuts: [],
+      timerDuration: 45, // 45 minutes
     });
 
-    // Clear any old timer data on fresh install
+    // Initialize timer on fresh install
     if (details.reason === "install") {
       await chrome.storage.local.remove(["globalTimerStartTime"]);
+      await this.initializeGlobalTimer();
+      await this.setupWorkingModeReminders();
 
       chrome.notifications.create("welcome", {
         type: "basic",
         iconUrl: "icons/icon48.png",
         title: "🎉 Welcome to Productivity Assistant!",
         message:
-          "Click the extension icon to start organizing your time and shortcuts.",
+          "Your 45-minute health reminder timer is now active. You'll get gentle reminders to move!",
         priority: 1,
       });
+    } else if (details.reason === "update") {
+      // Ensure timer is running after update
+      await this.initializeGlobalTimer();
+      await this.setupWorkingModeReminders();
     }
   }
 
@@ -254,48 +268,6 @@ class BackgroundService {
         await this.initializeGlobalTimer();
       }
     }
-  }
-
-  async restartTimerFromNow() {
-    // Clear existing alarm and create new one starting now
-    await chrome.alarms.clear(this.reminderAlarmName);
-    await chrome.alarms.create(this.reminderAlarmName, {
-      delayInMinutes: 45,
-      periodInMinutes: 45,
-    });
-
-    const now = Date.now();
-    this.globalTimerStartTime = now;
-
-    await chrome.storage.local.set({
-      isWorkingMode: true,
-      globalTimerStartTime: now,
-      timerDuration: 45,
-    });
-
-    console.log("Timer restarted from now:", new Date(now));
-    console.log("Next alarm in 45 minutes");
-  }
-
-  async set5MinuteTimer() {
-    // Clear existing alarm and create a 5-minute one-shot alarm
-    await chrome.alarms.clear(this.reminderAlarmName);
-    await chrome.alarms.create(this.reminderAlarmName, {
-      delayInMinutes: 5,
-      // No periodInMinutes - one-shot alarm
-    });
-
-    const now = Date.now();
-    this.globalTimerStartTime = now;
-
-    await chrome.storage.local.set({
-      isWorkingMode: true,
-      globalTimerStartTime: now,
-      timerDuration: 5,
-    });
-
-    console.log("5-minute timer set:", new Date(now));
-    console.log("Next alarm in 5 minutes");
   }
 
   // Performance optimization: Clean up unused alarms
