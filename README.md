@@ -89,6 +89,16 @@ The extension stores all settings locally using Chrome's storage API:
 - User preferences
 - Timer states
 
+## 🧪 Testing 1-Minute Timer
+
+If you want to test a **1-minute** timer (to see if you like it better or for debugging):
+
+1. Open `background.js`.
+2. Change `45` to `1` in these **6 specific lines**:
+   - Lines: 8, 91, 127, 161, 229, 260.
+3. Reload the extension.
+4. Test it! If you like it, keep using it.
+
 ## 📱 Compatibility
 
 - **Chrome**: Version 88 and above

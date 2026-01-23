@@ -6,15 +6,24 @@
 }
 
 body {
-  font-family: "Geom", "Inter", "SF Pro Display", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    "Geom",
+    "Inter",
+    "SF Pro Display",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   font-weight: 500;
   background: #000000;
   color: #ffffff;
   min-height: 100vh;
   overflow-x: hidden;
   position: relative;
-  cursor: url("cursor.png") 12 12, auto;
+  cursor:
+    url("cursor.png") 12 12,
+    auto;
 }
 
 .dashboard-container {
@@ -33,10 +42,8 @@ body {
   height: 100%;
   z-index: -1;
   background-color: #000000;
-  background-image: linear-gradient(
-      rgba(128, 128, 128, 0.15) 1px,
-      transparent 1px
-    ),
+  background-image:
+    linear-gradient(rgba(128, 128, 128, 0.15) 1px, transparent 1px),
     linear-gradient(90deg, rgba(128, 128, 128, 0.15) 1px, transparent 1px);
   background-size: 40px 40px;
   animation: gridFloat 30s linear infinite;
@@ -306,44 +313,83 @@ body {
 }
 
 /* Days Remaining Widget - New */
+/* Days Remaining Widget - Visual Redesign */
 .days-remaining-widget {
   display: flex;
   flex-direction: column;
 }
 
-.days-content {
+.days-content-visual {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  text-align: center;
+  justify-content: center;
+  gap: 15px;
+  padding: 10px 0;
 }
 
-.days-number {
-  font-size: 4rem;
-  font-weight: 300;
+.circular-progress {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: conic-gradient(#ffffff 0%, #333333 0%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  transition: background 1s ease-out;
+  position: relative;
+}
+
+.inner-circle {
+  width: 116px;
+  height: 116px;
+  background: #1a1a1a;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+}
+
+.percentage-text-big {
+  font-size: 1.8rem;
+  font-weight: 700;
   color: #ffffff;
-  font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
-  margin-bottom: 10px;
+  font-family: "Geom", sans-serif;
+  line-height: 1;
 }
 
-.days-text {
-  font-size: 1rem;
-  color: #cccccc;
-  margin-bottom: 8px;
-  font-weight: 500;
+.percentage-subtext {
+  font-size: 0.7rem;
+  color: #888888;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  margin-top: 4px;
 }
 
-.percentage-text {
-  font-size: 0.8rem;
-  color: #888888;
-  background: #333333;
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid #555555;
+.days-remaining-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.days-number-medium {
+  font-size: 1.4rem;
+  color: #ffffff;
+  font-weight: 300;
+  font-family: "SF Mono", monospace;
+}
+
+.days-label-small {
+  font-size: 0.75rem;
+  color: #aaaaaa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Health Reminder Widget */
@@ -676,8 +722,10 @@ body {
 
 /* Option 2: Glow Effect */
 .shortcut-card-new.glow-effect:hover {
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.4),
-    0 0 40px rgba(255, 255, 255, 0.2), 0 8px 25px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 0 20px rgba(255, 255, 255, 0.4),
+    0 0 40px rgba(255, 255, 255, 0.2),
+    0 8px 25px rgba(0, 0, 0, 0.3);
   border-color: #ffffff;
   transform: scale(1.03);
 }
@@ -891,8 +939,14 @@ body {
 
 /* Notification styles */
 .notification {
-  font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, sans-serif;
+  font-family:
+    "Inter",
+    "SF Pro Display",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
 }
@@ -1186,7 +1240,9 @@ body {
 
 /* Custom Cursor Styles */
 * {
-  cursor: url("./cursor.png") 12 12, auto;
+  cursor:
+    url("./cursor.png") 12 12,
+    auto;
 }
 
 button,
@@ -1199,7 +1255,9 @@ a,
 input[type="button"],
 input[type="submit"],
 .clickable {
-  cursor: url("./cursor.png") 12 12, pointer !important;
+  cursor:
+    url("./cursor.png") 12 12,
+    pointer !important;
 }
 
 button:hover,
@@ -1207,7 +1265,9 @@ a:hover,
 .shortcut-card-new:hover,
 .control-btn:hover,
 .edit-btn:hover {
-  cursor: url("./cursor.png") 12 12, pointer !important;
+  cursor:
+    url("./cursor.png") 12 12,
+    pointer !important;
 }
 
 #shortcuts-status {
@@ -1365,8 +1425,10 @@ a:hover,
   border: 1px solid #404040;
   border-radius: 12px;
   color: #ffffff;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   max-width: 420px;
   width: 90%;
@@ -1511,7 +1573,9 @@ a:hover,
   display: flex;
   align-items: center;
   gap: 15px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(255, 255, 255, 0.1);
   z-index: 10000;
   min-width: 320px;
   max-width: 400px;

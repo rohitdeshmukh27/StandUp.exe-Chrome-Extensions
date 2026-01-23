@@ -18,7 +18,6 @@ class BackgroundService {
   setupEventListeners() {
     // Handle messages from popup
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log("Background service received message:", message);
       this.handleMessage(message, sender, sendResponse);
       return true; // Keep the message channel open for async responses
     });
@@ -59,16 +58,13 @@ class BackgroundService {
 
         case "getGlobalTimerState":
           const timerState = await this.getGlobalTimerState();
-          console.log("Sending timer state:", timerState);
           sendResponse(timerState);
           break;
 
         default:
-          console.log("Unknown message action:", message.action);
           sendResponse({ error: "Unknown action" });
       }
     } catch (error) {
-      console.error("Error handling message:", error);
       sendResponse({ error: error.message });
     }
   }
@@ -94,22 +90,12 @@ class BackgroundService {
         globalTimerStartTime: this.globalTimerStartTime,
         timerDuration: 45, // 45 minutes
       });
-      console.log(
-        "Global timer initialized at:",
-        new Date(this.globalTimerStartTime)
-      );
-    } else {
-      console.log(
-        "Global timer already exists:",
-        new Date(this.globalTimerStartTime)
-      );
     }
   }
 
   async clearGlobalTimer() {
     this.globalTimerStartTime = null;
     await chrome.storage.local.remove(["globalTimerStartTime"]);
-    console.log("Global timer cleared");
   }
 
   async getGlobalTimerState() {
@@ -123,14 +109,6 @@ class BackgroundService {
     this.isWorkingMode = result.isWorkingMode || false;
     this.globalTimerStartTime = result.globalTimerStartTime || null;
 
-    console.log("Storage result:", result);
-    console.log("Background timer state:", {
-      isActive: this.isWorkingMode,
-      startTime: this.globalTimerStartTime,
-      timerDuration: result.timerDuration || 45,
-      currentTime: Date.now(),
-    });
-
     return {
       isActive: this.isWorkingMode,
       startTime: this.globalTimerStartTime,
@@ -143,18 +121,15 @@ class BackgroundService {
     // Clear any existing alarms first
     await chrome.alarms.clear(this.reminderAlarmName);
 
-    // Create repeating alarm every hour (60 minutes)
+    // Create explicit alarm for 45 minutes from now
+    // We do NOT use periodInMinutes to avoid drift. We manually reschedule in the alarm handler.
     await chrome.alarms.create(this.reminderAlarmName, {
       delayInMinutes: 45,
-      periodInMinutes: 45,
     });
-
-    console.log("Working mode reminders set up for every 45 minutes");
   }
 
   async clearWorkingModeReminders() {
     await chrome.alarms.clear(this.reminderAlarmName);
-    console.log("Working mode reminders cleared");
   }
 
   async handleAlarm(alarm) {
@@ -171,6 +146,21 @@ class BackgroundService {
       return;
     }
 
+    // STRICT SYNC: Reset the timer immediately to now
+    this.globalTimerStartTime = Date.now();
+
+    // Save to storage (triggers UI update in newtab.js via onChanged event)
+    await chrome.storage.local.set({
+      globalTimerStartTime: this.globalTimerStartTime,
+    });
+
+    // Schedule NEXT alarm explicitly for 45 minutes from NOW
+    // This ensures pending alarms from sleep mode don't stack up or fire weirdly
+    await chrome.alarms.clear(this.reminderAlarmName);
+    await chrome.alarms.create(this.reminderAlarmName, {
+      delayInMinutes: 45,
+    });
+
     // Create gentle notification
     const notificationId = `reminder-${Date.now()}`;
 
@@ -184,32 +174,42 @@ class BackgroundService {
       requireInteraction: false,
     });
 
-    console.log("Gentle reminder notification shown");
+    // Smart Tab Handling:
+    // 1. Send toast to ANY tab that will accept it (newtab pages)
+    // 2. Only open a NEW tab if we didn't find any existing extension tabs
 
-    // Send message to all tabs to show toast notification
-    chrome.tabs.query({}, (tabs) => {
-      tabs.forEach((tab) => {
-        chrome.tabs.sendMessage(tab.id, { action: "showToast" }).catch(() => {
-          // Tab might not have content script, ignore error
-        });
+    const extensionNewTabUrl = chrome.runtime.getURL("newtab.html");
+    const tabs = await chrome.tabs.query({});
+    let extensionTabFound = false;
+
+    for (const tab of tabs) {
+      chrome.tabs.sendMessage(tab.id, { action: "showToast" }).catch(() => {});
+
+      // Check if this is one of our newtab pages
+      if (
+        tab.url &&
+        (tab.url === extensionNewTabUrl ||
+          tab.url.startsWith(extensionNewTabUrl))
+      ) {
+        extensionTabFound = true;
+      }
+    }
+
+    // Only open a new tab if we didn't find one
+    if (!extensionTabFound) {
+      await chrome.tabs.create({
+        url: extensionNewTabUrl + "?showToast=true",
+        active: true,
       });
-    });
-
-    // Also open a new tab with the toast if no tabs are open
-    const newTabUrl = chrome.runtime.getURL("newtab.html") + "?showToast=true";
-    await chrome.tabs.create({ url: newTabUrl, active: true });
+    }
 
     // Auto-clear notification after 10 seconds
     setTimeout(() => {
       chrome.notifications.clear(notificationId);
     }, 10000);
-
-    // Timer automatically continues due to periodInMinutes in alarm
-    console.log("Timer will auto-restart in 45 minutes");
   }
 
   async onStartup() {
-    console.log("Extension started");
     await this.loadSettings();
 
     // Ensure timer is always active
@@ -222,8 +222,6 @@ class BackgroundService {
   }
 
   async onInstalled(details) {
-    console.log("Extension installed/updated:", details.reason);
-
     // Auto-enable working mode and start timer
     await chrome.storage.local.set({
       isWorkingMode: true,
@@ -263,7 +261,15 @@ class BackgroundService {
 
     // If working mode was active, restart reminders and timer
     if (this.isWorkingMode) {
-      await this.setupWorkingModeReminders();
+      // We don't want to reset the timer if it's already running,
+      // but we do want to ensure the alarm is active.
+      // Since we can't easily check when the *next* alarm is,
+      // we'll leave existing alarms alone if they exist.
+      const alarm = await chrome.alarms.get(this.reminderAlarmName);
+      if (!alarm) {
+        await this.setupWorkingModeReminders();
+      }
+
       if (!this.globalTimerStartTime) {
         await this.initializeGlobalTimer();
       }
@@ -289,9 +295,7 @@ class BackgroundService {
 }
 
 // Initialize the background service
-console.log("Initializing background service...");
 const backgroundService = new BackgroundService();
-console.log("Background service initialized:", backgroundService);
 
 // Periodic cleanup to maintain performance
 chrome.alarms.create("cleanup", { periodInMinutes: 1440 }); // Daily cleanup

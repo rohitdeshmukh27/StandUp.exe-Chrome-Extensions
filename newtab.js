@@ -174,6 +174,7 @@ class ProductivityDashboard {
   async init() {
     this.setupGreeting();
     this.setupEventListeners();
+    this.setupMessageListeners();
     this.initializeAnimatedNumbers();
     this.startTimeUpdate();
     this.updateDaysRemaining();
@@ -186,9 +187,6 @@ class ProductivityDashboard {
     window.addEventListener("beforeunload", () => {
       this.cleanup();
     });
-
-    // Add debug info for shortcuts (only in console, no notifications)
-    console.log("Dashboard initialized. Current shortcuts:", this.shortcuts);
   }
 
   cleanup() {
@@ -236,14 +234,14 @@ class ProductivityDashboard {
     if (percentageElement) {
       percentageElement.classList.add("animated-number");
       this.animatedNumbers.yearPercentage = new AnimatedNumber(
-        percentageElement
+        percentageElement,
       );
     }
 
     if (breakCountdownElement) {
       breakCountdownElement.classList.add("animated-number");
       this.animatedNumbers.breakCountdown = new AnimatedNumber(
-        breakCountdownElement
+        breakCountdownElement,
       );
     }
   }
@@ -319,14 +317,9 @@ class ProductivityDashboard {
         "isWorkingMode",
         "globalTimerStartTime",
       ]);
-      console.log("Direct storage result:", result);
 
       if (result.isWorkingMode && result.globalTimerStartTime) {
         this.healthReminder.globalStartTime = result.globalTimerStartTime;
-        console.log(
-          "Using existing timer from storage, start time:",
-          new Date(result.globalTimerStartTime)
-        );
 
         // Start the sync immediately
         this.startGlobalTimerSync();
@@ -337,39 +330,31 @@ class ProductivityDashboard {
         // No timer active, show default state
         this.setTimerDisplay("--:--", "#ffffff");
         this.setHealthTip(
-          "Click here to start health reminders (45-minute intervals)"
+          "Click here to start health reminders (45-minute intervals)",
         );
-        console.log("No active timer found in storage");
       }
     } catch (error) {
       console.error("Failed to access storage:", error);
       this.setTimerDisplay("--:--", "#ffffff");
       this.setHealthTip("Storage access error");
     }
-
-    console.log("Simple Health Reminder System initialized");
   }
 
   async syncWithGlobalTimer() {
     try {
-      console.log("Sending message to background service...");
       const response = await chrome.runtime.sendMessage({
         action: "getGlobalTimerState",
       });
 
-      console.log("Global timer sync response:", response);
-
       if (response && response.isActive && response.startTime) {
         this.healthReminder.globalStartTime = response.startTime;
         this.updateDisplayFromGlobalTimer();
-        console.log("Synced with global timer successfully");
       } else if (response && !response.isActive) {
         // Working mode is not active
         this.setTimerDisplay("--:--", "#ffffff");
         this.setHealthTip(
-          "Enable Working Mode in the extension popup to start health reminders"
+          "Enable Working Mode in the extension popup to start health reminders",
         );
-        console.log("Working mode is not active");
       } else if (response && response.error) {
         // Error response from background
         console.error("Background service error:", response.error);
@@ -379,9 +364,8 @@ class ProductivityDashboard {
         // No valid response
         this.setTimerDisplay("45:00", "#ffffff");
         this.setHealthTip(
-          "Click the extension icon to enable health reminders"
+          "Click the extension icon to enable health reminders",
         );
-        console.log("No valid timer response");
       }
     } catch (error) {
       console.error("Failed to sync with global timer:", error);
@@ -393,7 +377,6 @@ class ProductivityDashboard {
       if (!this.healthReminder.retryAttempted) {
         this.healthReminder.retryAttempted = true;
         setTimeout(() => {
-          console.log("Retrying global timer sync...");
           this.syncWithGlobalTimer();
         }, 2000);
       }
@@ -406,34 +389,23 @@ class ProductivityDashboard {
       this.updateDisplayFromGlobalTimer();
     }, 1000);
 
-    // Re-sync with storage every 30 seconds to prevent drift
-    this.healthReminder.resyncInterval = setInterval(async () => {
-      try {
-        const result = await chrome.storage.local.get([
-          "isWorkingMode",
-          "globalTimerStartTime",
-        ]);
-        if (result.isWorkingMode && result.globalTimerStartTime) {
-          // Only update if the stored time is different (another tab started/stopped timer)
-          if (
-            this.healthReminder.globalStartTime !== result.globalTimerStartTime
-          ) {
-            console.log("Timer state changed in another tab, syncing...");
-            this.healthReminder.globalStartTime = result.globalTimerStartTime;
-          }
-        } else if (result.isWorkingMode === false) {
-          // Timer was stopped in another tab
-          console.log("Timer stopped in another tab");
+    // Optimized: Use event listener for instant updates instead of polling
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === "local") {
+        if (changes.globalTimerStartTime) {
+          this.healthReminder.globalStartTime =
+            changes.globalTimerStartTime.newValue;
+          this.updateDisplayFromGlobalTimer();
+        }
+        if (changes.isWorkingMode && !changes.isWorkingMode.newValue) {
           this.healthReminder.globalStartTime = null;
           this.setTimerDisplay("--:--", "#ffffff");
           this.setHealthTip(
-            "Click here to start health reminders (45-minute intervals)"
+            "Click here to start health reminders (45-minute intervals)",
           );
         }
-      } catch (error) {
-        console.error("Re-sync error:", error);
       }
-    }, 30000);
+    });
   }
 
   async updateDisplayFromGlobalTimer() {
@@ -441,9 +413,8 @@ class ProductivityDashboard {
       // If no timer is active, show a default state and offer to start one
       this.setTimerDisplay("--:--", "#ffffff");
       this.setHealthTip(
-        "Click here to start health reminders (45-minute intervals)"
+        "Click here to start health reminders (45-minute intervals)",
       );
-      console.log("No global timer start time available");
       return;
     }
 
@@ -456,17 +427,8 @@ class ProductivityDashboard {
     const startTime = this.healthReminder.globalStartTime;
     const elapsed = now - startTime;
 
-    console.log("Timer calculation:", {
-      now: new Date(now),
-      startTime: new Date(startTime),
-      elapsed: elapsed,
-      elapsedMinutes: Math.floor(elapsed / 60000),
-      timerDuration: timerDurationMinutes,
-    });
-
     // Handle case where elapsed time is negative (clock issues)
     if (elapsed < 0) {
-      console.warn("Timer elapsed time is negative, resetting");
       this.setTimerDisplay(`${timerDurationMinutes}:00`, "#ffffff");
       return;
     }
@@ -480,17 +442,8 @@ class ProductivityDashboard {
     // Calculate time remaining until next cycle
     const remaining = timerDurationMs - timeIntoCurrentCycle;
 
-    console.log("Detailed calculation:", {
-      completedCycles,
-      timeIntoCurrentCycle,
-      timeIntoCurrentCycleMinutes: Math.floor(timeIntoCurrentCycle / 60000),
-      remaining,
-      remainingMinutes: Math.floor(remaining / 60000),
-    });
-
     // Ensure remaining time is valid
     if (remaining <= 0 || remaining > timerDurationMs) {
-      console.warn("Invalid remaining time calculated:", remaining);
       this.setTimerDisplay(`${timerDurationMinutes}:00`, "#ffffff");
       return;
     }
@@ -504,10 +457,8 @@ class ProductivityDashboard {
     // Update display
     this.setTimerDisplay(timeString, "#ffffff");
     this.setHealthTip(
-      "Stay active! Regular movement boosts productivity and health"
+      "Stay active! Regular movement boosts productivity and health",
     );
-
-    console.log("Display updated:", timeString);
   }
 
   // Check if break needs to be shown (from URL params)
@@ -543,7 +494,7 @@ class ProductivityDashboard {
     // Play gentle notification sound
     try {
       const audio = new Audio(
-        "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
+        "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA",
       );
       audio.volume = 0.3;
       audio.play().catch(() => {});
@@ -563,6 +514,7 @@ class ProductivityDashboard {
   }
 
   // Add method to manually start timer
+  // Add method to manually start timer
   async startHealthTimer() {
     const now = Date.now();
 
@@ -578,8 +530,6 @@ class ProductivityDashboard {
         isWorkingMode: true,
         globalTimerStartTime: startTime,
       });
-      console.log("Health timer started manually at:", new Date(startTime));
-      console.log("Timer will trigger every hour on the hour");
 
       // Update display immediately
       this.updateDisplayFromGlobalTimer();
@@ -591,7 +541,7 @@ class ProductivityDashboard {
       this.scheduleHourlyNotifications();
 
       this.setHealthTip(
-        "Health reminders active! You'll get notified every 45 minutes."
+        "Health reminders active! You'll get notified every 45 minutes.",
       );
     } catch (error) {
       console.error("Failed to start timer:", error);
@@ -633,9 +583,12 @@ class ProductivityDashboard {
     }
 
     // Set up hourly notifications
-    this.healthReminder.notificationTimer = setInterval(() => {
-      this.showHealthNotification();
-    }, 45 * 60 * 1000); // 45 minutes
+    this.healthReminder.notificationTimer = setInterval(
+      () => {
+        this.showHealthNotification();
+      },
+      45 * 60 * 1000,
+    ); // 45 minutes
 
     console.log("Hourly notifications scheduled");
   }
@@ -654,7 +607,7 @@ class ProductivityDashboard {
         // Play a simple beep sound
         try {
           const audio = new Audio(
-            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA"
+            "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIcBjiN0fPOeSsFJHHDwcgELAAAVDVmKAoEAAAAcwBGVAAOAOAGcADwBQAA",
           );
           audio.volume = 0.5;
           audio.play().catch(() => {});
@@ -698,7 +651,7 @@ class ProductivityDashboard {
     const startOfYear = new Date(2026, 0, 1); // January 1, 2026
 
     const totalDays = Math.ceil(
-      (endOfYear - startOfYear) / (1000 * 60 * 60 * 24)
+      (endOfYear - startOfYear) / (1000 * 60 * 60 * 24),
     );
     const daysRemaining = Math.ceil((endOfYear - now) / (1000 * 60 * 60 * 24));
     const daysPassed = totalDays - daysRemaining;
@@ -708,17 +661,24 @@ class ProductivityDashboard {
     if (this.animatedNumbers.daysRemaining) {
       this.animatedNumbers.daysRemaining.setValue(daysRemaining);
     } else {
-      document.getElementById("days-remaining").textContent = daysRemaining;
+      const el = document.getElementById("days-remaining");
+      if (el) el.textContent = daysRemaining;
     }
 
     if (this.animatedNumbers.yearPercentage) {
-      this.animatedNumbers.yearPercentage.setValue(
-        `${percentageCompleted}% completed`
-      );
+      this.animatedNumbers.yearPercentage.setValue(`${percentageCompleted}%`);
     } else {
-      document.getElementById(
-        "percentage-year"
-      ).textContent = `${percentageCompleted}% completed`;
+      const el = document.getElementById("percentage-year");
+      if (el) el.textContent = `${percentageCompleted}%`;
+    }
+
+    // Update circular chart
+    const circle = document.getElementById("year-progress-circle");
+    if (circle) {
+      // Use setTimeout to allow initial render transition
+      setTimeout(() => {
+        circle.style.background = `conic-gradient(#ffffff ${percentageCompleted}%, #333333 ${percentageCompleted}%)`;
+      }, 100);
     }
   }
 
@@ -755,7 +715,7 @@ class ProductivityDashboard {
     const refreshQuoteBtn = document.getElementById("refresh-quote-btn");
     if (refreshQuoteBtn) {
       refreshQuoteBtn.addEventListener("click", () =>
-        this.displayRandomQuote()
+        this.displayRandomQuote(),
       );
     }
 
@@ -789,6 +749,14 @@ class ProductivityDashboard {
       if (e.ctrlKey && e.shiftKey && e.key === "F") {
         e.preventDefault();
         this.forceSave();
+      }
+    });
+  }
+
+  setupMessageListeners() {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === "showToast") {
+        this.showGentleToast();
       }
     });
   }
@@ -834,7 +802,7 @@ class ProductivityDashboard {
 
           // Ask user if they want to replace or merge
           const replace = confirm(
-            `Import ${importedCount} shortcuts?\n\nClick OK to REPLACE current shortcuts\nClick Cancel to MERGE with existing shortcuts`
+            `Import ${importedCount} shortcuts?\n\nClick OK to REPLACE current shortcuts\nClick Cancel to MERGE with existing shortcuts`,
           );
 
           if (replace) {
@@ -843,7 +811,7 @@ class ProductivityDashboard {
             // Merge shortcuts, avoiding duplicates by URL
             const existingUrls = new Set(this.shortcuts.map((s) => s.url));
             const newShortcuts = data.shortcuts.filter(
-              (s) => !existingUrls.has(s.url)
+              (s) => !existingUrls.has(s.url),
             );
             this.shortcuts.push(...newShortcuts);
           }
@@ -852,7 +820,7 @@ class ProductivityDashboard {
           this.renderCustomShortcuts();
           this.showNotification(
             `${importedCount} shortcuts imported successfully!`,
-            "success"
+            "success",
           );
         } else {
           throw new Error("Invalid file format");
@@ -861,7 +829,7 @@ class ProductivityDashboard {
         console.error("Import failed:", error);
         this.showNotification(
           "Failed to import shortcuts. Please check the file format.",
-          "error"
+          "error",
         );
       }
     });
@@ -977,7 +945,7 @@ class ProductivityDashboard {
     } catch (error) {
       console.warn(
         "Direct favicon fetch failed, using fallback method:",
-        error
+        error,
       );
       // Fallback to common favicon locations
       return this.tryCommonFaviconLocations(url);
@@ -1063,7 +1031,7 @@ class ProductivityDashboard {
       // If no shortcuts in Chrome storage, try localStorage as fallback
       if (this.shortcuts.length === 0) {
         const localStorageShortcuts = localStorage.getItem(
-          "productivity-shortcuts"
+          "productivity-shortcuts",
         );
         if (localStorageShortcuts) {
           this.shortcuts = JSON.parse(localStorageShortcuts);
@@ -1076,16 +1044,16 @@ class ProductivityDashboard {
       console.log(
         "Shortcuts loaded successfully:",
         this.shortcuts.length,
-        "shortcuts"
+        "shortcuts",
       );
     } catch (error) {
       console.warn(
         "Failed to load from Chrome storage, using localStorage:",
-        error
+        error,
       );
       // Fallback to localStorage if Chrome storage fails
       const localStorageShortcuts = localStorage.getItem(
-        "productivity-shortcuts"
+        "productivity-shortcuts",
       );
       this.shortcuts = localStorageShortcuts
         ? JSON.parse(localStorageShortcuts)
@@ -1104,23 +1072,23 @@ class ProductivityDashboard {
       // Also save to localStorage as backup
       localStorage.setItem(
         "productivity-shortcuts",
-        JSON.stringify(this.shortcuts)
+        JSON.stringify(this.shortcuts),
       );
       this.updateShortcutsStatus("loaded");
       console.log(
         "Shortcuts saved silently:",
         this.shortcuts.length,
-        "shortcuts"
+        "shortcuts",
       );
     } catch (error) {
       console.warn(
         "Failed to save to Chrome storage, using localStorage:",
-        error
+        error,
       );
       // Fallback to localStorage only
       localStorage.setItem(
         "productivity-shortcuts",
-        JSON.stringify(this.shortcuts)
+        JSON.stringify(this.shortcuts),
       );
       this.updateShortcutsStatus("error");
     }
@@ -1165,7 +1133,7 @@ class ProductivityDashboard {
 
     // Update shortcuts count in header if needed
     const header = document.querySelector(
-      ".shortcuts-widget-new .widget-header h2"
+      ".shortcuts-widget-new .widget-header h2",
     );
     if (header) {
       header.textContent = `SHORTCUTS (${this.shortcuts.length})`;
@@ -1181,7 +1149,7 @@ class ProductivityDashboard {
 
       // Drag and Drop event listeners
       card.addEventListener("dragstart", (e) =>
-        this.handleDragStart(e, shortcut)
+        this.handleDragStart(e, shortcut),
       );
       card.addEventListener("dragover", (e) => this.handleDragOver(e));
       card.addEventListener("dragenter", (e) => this.handleDragEnter(e));
@@ -1460,7 +1428,7 @@ class ProductivityDashboard {
 
     // Update the shortcut
     const shortcutIndex = this.shortcuts.findIndex(
-      (s) => s.id === this.currentContextShortcut.id
+      (s) => s.id === this.currentContextShortcut.id,
     );
     if (shortcutIndex !== -1) {
       const oldUrl = this.shortcuts[shortcutIndex].url;
@@ -1506,8 +1474,8 @@ class ProductivityDashboard {
         type === "success"
           ? "#4CAF50"
           : type === "error"
-          ? "#f44336"
-          : "#2196F3"
+            ? "#f44336"
+            : "#2196F3"
       };
       color: white;
       padding: 12px 20px;
@@ -1575,14 +1543,14 @@ class ProductivityDashboard {
 
     if (this.draggedShortcut && this.draggedShortcut.id !== targetShortcut.id) {
       console.log(
-        `Dropping ${this.draggedShortcut.name} onto ${targetShortcut.name}`
+        `Dropping ${this.draggedShortcut.name} onto ${targetShortcut.name}`,
       );
 
       const fromIndex = this.shortcuts.findIndex(
-        (s) => s.id === this.draggedShortcut.id
+        (s) => s.id === this.draggedShortcut.id,
       );
       const toIndex = this.shortcuts.findIndex(
-        (s) => s.id === targetShortcut.id
+        (s) => s.id === targetShortcut.id,
       );
 
       if (fromIndex !== -1 && toIndex !== -1) {

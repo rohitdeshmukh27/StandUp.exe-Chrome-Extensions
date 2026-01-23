@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -76,13 +76,20 @@
           <!-- Days Remaining Widget -->
           <section class="widget days-remaining-widget">
             <div class="widget-header">
-              <h2>DAYS REMAINING FOR 2026</h2>
+              <h2>YEAR PROGRESS</h2>
             </div>
-            <div class="days-content">
-              <div id="days-remaining" class="days-number">--</div>
-              <div class="days-text">Days Left</div>
-              <div id="percentage-year" class="percentage-text">
-                --% completed
+            <div class="days-content-visual">
+              <div class="circular-progress" id="year-progress-circle">
+                <div class="inner-circle">
+                  <div id="percentage-year" class="percentage-text-big">
+                    --%
+                  </div>
+                  <div class="percentage-subtext">Done</div>
+                </div>
+              </div>
+              <div class="days-remaining-container">
+                <span id="days-remaining" class="days-number-medium">--</span>
+                <span class="days-label-small">Days Left in 2026</span>
               </div>
             </div>
           </section>
