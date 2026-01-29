@@ -320,12 +320,20 @@ class ProductivityDashboard {
 
       if (result.isWorkingMode && result.globalTimerStartTime) {
         this.healthReminder.globalStartTime = result.globalTimerStartTime;
+        this.setTimerEnabled(true);
 
         // Start the sync immediately
         this.startGlobalTimerSync();
 
         // Update display immediately
         this.updateDisplayFromGlobalTimer();
+      } else if (result.isWorkingMode === false) {
+        // Timer is explicitly disabled
+        this.setTimerEnabled(false);
+        this.setTimerDisplay("DISABLED", "#f87171");
+        this.setHealthTip(
+          "Timer is disabled. Enable from extension popup to receive health reminders.",
+        );
       } else {
         // No timer active, show default state
         this.setTimerDisplay("--:--", "#ffffff");
@@ -397,12 +405,19 @@ class ProductivityDashboard {
             changes.globalTimerStartTime.newValue;
           this.updateDisplayFromGlobalTimer();
         }
-        if (changes.isWorkingMode && !changes.isWorkingMode.newValue) {
-          this.healthReminder.globalStartTime = null;
-          this.setTimerDisplay("--:--", "#ffffff");
-          this.setHealthTip(
-            "Click here to start health reminders (45-minute intervals)",
-          );
+        if (changes.isWorkingMode) {
+          if (changes.isWorkingMode.newValue === false) {
+            // Timer disabled - show disabled state with blur effect
+            this.healthReminder.globalStartTime = null;
+            this.setTimerEnabled(false);
+            this.setTimerDisplay("DISABLED", "#f87171");
+            this.setHealthTip(
+              "Timer is disabled. Enable from extension popup to receive health reminders.",
+            );
+          } else if (changes.isWorkingMode.newValue === true) {
+            // Timer enabled - remove disabled state
+            this.setTimerEnabled(true);
+          }
         }
       }
     });
@@ -638,6 +653,22 @@ class ProductivityDashboard {
     const tipElement = document.getElementById("health-tip-text");
     if (tipElement) {
       tipElement.textContent = tipText;
+    }
+  }
+
+  setTimerEnabled(isEnabled) {
+    const widget = document.querySelector(".health-reminder-widget");
+    const timerDisplay = document.getElementById("reminder-timer");
+    const timerLabel = document.querySelector(".timer-label");
+
+    if (widget) {
+      if (isEnabled) {
+        widget.classList.remove("timer-disabled");
+        if (timerLabel) timerLabel.textContent = "Next break in";
+      } else {
+        widget.classList.add("timer-disabled");
+        if (timerLabel) timerLabel.textContent = "Timer is off";
+      }
     }
   }
 

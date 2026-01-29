@@ -1,6 +1,6 @@
 {
   "name": "productivity-assistant-extension",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Chrome extension for productivity with time display, shortcuts, and working mode reminders",
   "scripts": {
     "build": "echo 'Chrome extension ready for loading'",

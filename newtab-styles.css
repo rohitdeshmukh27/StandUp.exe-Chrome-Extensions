@@ -474,6 +474,62 @@ body {
   box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
 }
 
+/* Timer Disabled State */
+.health-reminder-widget.timer-disabled {
+  position: relative;
+}
+
+.health-reminder-widget.timer-disabled .health-reminder-content {
+  filter: blur(2px);
+  opacity: 0.4;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.health-reminder-widget.timer-disabled::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(248, 113, 113, 0.1) 0%,
+    rgba(248, 113, 113, 0.05) 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.health-reminder-widget.timer-disabled .timer-display {
+  filter: none !important;
+  opacity: 1 !important;
+  color: #f87171 !important;
+  font-size: 1.8rem;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 20px rgba(248, 113, 113, 0.5);
+}
+
+.health-reminder-widget.timer-disabled .timer-label {
+  filter: none !important;
+  opacity: 1 !important;
+  color: #f87171 !important;
+}
+
+.health-reminder-widget.timer-disabled .reminder-status {
+  filter: none !important;
+  opacity: 1 !important;
+  position: relative;
+  z-index: 1;
+}
+
+.health-reminder-widget.timer-disabled .health-tips {
+  border-left-color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
 /* Break Alert Animation */
 .break-alert {
   animation: breakAlert 2s ease-in-out infinite;

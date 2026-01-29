@@ -1,58 +1,85 @@
-// Popup script for motivational quotes
-class MotivationalPopup {
+// Popup script for StandUp.exe timer control
+class TimerControlPopup {
   constructor() {
-    this.quotes = [
-      "Code is like humor. When you have to explain it, it's bad. 😄",
-      "Why do programmers prefer dark mode? Because light attracts bugs! 🐛",
-      "Life is like programming: if it doesn't work, just add more coffee! ☕",
-      "Remember: Every expert was once a beginner who refused to give up! 💪",
-      "Debugging is like being a detective in a crime movie where you're also the murderer. 🕵️",
-      "The best error message is the one that never shows up. Keep coding! 🚀",
-      "Your code works? Ship it before it changes its mind! 📦",
-      "A day without laughter is a day wasted. A day without coding... is also wasted! 😂",
-      "99 little bugs in the code, 99 bugs in the code. Take one down, patch it around, 127 bugs in the code! 🐛➡️🐛🐛🐛",
-      "If at first you don't succeed, call it version 1.0! 🎯",
-    ];
-    this.currentQuoteIndex = 0;
+    this.timerToggle = document.getElementById("timer-toggle");
+    this.statusIndicator = document.getElementById("status-indicator");
+    this.statusText = document.getElementById("status-text");
+    this.statusDescription = document.getElementById("status-description");
+    this.toggleLabel = document.getElementById("toggle-label");
+    this.disabledNotice = document.getElementById("disabled-notice");
     this.init();
   }
 
-  init() {
+  async init() {
+    await this.loadTimerState();
     this.setupEventListeners();
-    this.showRandomQuote();
   }
 
   setupEventListeners() {
-    const newQuoteBtn = document.getElementById("new-quote-btn");
-    if (newQuoteBtn) {
-      newQuoteBtn.addEventListener("click", () => this.showRandomQuote());
+    if (this.timerToggle) {
+      this.timerToggle.addEventListener("change", (e) => {
+        this.toggleTimer(e.target.checked);
+      });
     }
   }
 
-  showRandomQuote() {
-    const quoteElement = document.getElementById("motivational-quote");
-    if (!quoteElement) return;
+  async loadTimerState() {
+    try {
+      const result = await chrome.storage.local.get(["isWorkingMode"]);
+      const isEnabled = result.isWorkingMode !== false; // Default to true
+      this.updateUI(isEnabled);
+    } catch (error) {
+      console.error("Error loading timer state:", error);
+      this.updateUI(true); // Default to enabled
+    }
+  }
 
-    // Get a random quote different from the current one
-    let newIndex;
-    do {
-      newIndex = Math.floor(Math.random() * this.quotes.length);
-    } while (newIndex === this.currentQuoteIndex && this.quotes.length > 1);
+  async toggleTimer(isEnabled) {
+    try {
+      // Save the new state
+      await chrome.storage.local.set({ isWorkingMode: isEnabled });
 
-    this.currentQuoteIndex = newIndex;
-    const selectedQuote = this.quotes[this.currentQuoteIndex];
+      // Send message to background script to toggle working mode
+      await chrome.runtime.sendMessage({
+        action: "toggleWorkingMode",
+        isActive: isEnabled,
+      });
 
-    // Add fade out effect
-    quoteElement.style.opacity = "0";
+      // Update the UI
+      this.updateUI(isEnabled);
+    } catch (error) {
+      console.error("Error toggling timer:", error);
+      // Revert the toggle on error
+      this.timerToggle.checked = !isEnabled;
+    }
+  }
 
-    setTimeout(() => {
-      quoteElement.textContent = selectedQuote;
-      quoteElement.style.opacity = "1";
-    }, 150);
+  updateUI(isEnabled) {
+    // Update toggle state
+    this.timerToggle.checked = isEnabled;
+
+    // Update status indicator
+    if (isEnabled) {
+      this.statusIndicator.classList.remove("disabled");
+      this.statusIndicator.classList.add("enabled");
+      this.statusText.textContent = "Active";
+      this.statusDescription.textContent =
+        "You'll receive health reminders every 45 minutes.";
+      this.toggleLabel.textContent = "Timer Enabled";
+      this.disabledNotice.style.display = "none";
+    } else {
+      this.statusIndicator.classList.remove("enabled");
+      this.statusIndicator.classList.add("disabled");
+      this.statusText.textContent = "Disabled";
+      this.statusDescription.textContent =
+        "Health reminders are currently turned off.";
+      this.toggleLabel.textContent = "Timer Disabled";
+      this.disabledNotice.style.display = "flex";
+    }
   }
 }
 
 // Initialize the popup when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
-  new MotivationalPopup();
+  new TimerControlPopup();
 });
