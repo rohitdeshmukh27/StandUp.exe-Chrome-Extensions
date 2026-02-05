@@ -210,27 +210,20 @@ class BackgroundService {
   }
 
   async onStartup() {
+    // Load user's saved preferences without forcing timer on
     await this.loadSettings();
-
-    // Ensure timer is always active
-    if (!this.isWorkingMode) {
-      await chrome.storage.local.set({ isWorkingMode: true });
-      this.isWorkingMode = true;
-      await this.initializeGlobalTimer();
-      await this.setupWorkingModeReminders();
-    }
   }
 
   async onInstalled(details) {
-    // Auto-enable working mode and start timer
-    await chrome.storage.local.set({
-      isWorkingMode: true,
-      shortcuts: [],
-      timerDuration: 45, // 45 minutes
-    });
-
-    // Initialize timer on fresh install
+    // Only set defaults on fresh install
     if (details.reason === "install") {
+      // Set initial defaults for new installation
+      await chrome.storage.local.set({
+        isWorkingMode: true,
+        shortcuts: [],
+        timerDuration: 45, // 45 minutes
+      });
+
       await chrome.storage.local.remove(["globalTimerStartTime"]);
       await this.initializeGlobalTimer();
       await this.setupWorkingModeReminders();
@@ -238,15 +231,14 @@ class BackgroundService {
       chrome.notifications.create("welcome", {
         type: "basic",
         iconUrl: "icons/icon48.png",
-        title: "🎉 Welcome to Productivity Assistant!",
+        title: "🎉 Welcome to StandUp.exe!",
         message:
-          "Your 45-minute health reminder timer is now active. You'll get gentle reminders to move!",
+          "Your 45-minute health reminder timer is now active. You can disable it anytime from the extension popup.",
         priority: 1,
       });
     } else if (details.reason === "update") {
-      // Ensure timer is running after update
-      await this.initializeGlobalTimer();
-      await this.setupWorkingModeReminders();
+      // On update, respect existing user settings - just load them
+      await this.loadSettings();
     }
   }
 
@@ -255,16 +247,24 @@ class BackgroundService {
       "isWorkingMode",
       "globalTimerStartTime",
     ]);
-    this.isWorkingMode = result.isWorkingMode || false;
-    this.globalTimerStartTime = result.globalTimerStartTime || null;
-    this.reminderInterval = 45; // Always 45 minutes (as requested)
 
-    // If working mode was active, restart reminders and timer
+    // Properly handle the state: undefined means first run (default to true)
+    // false means user explicitly disabled it (respect that)
+    // true means enabled
+    if (result.isWorkingMode === undefined) {
+      // First run - default to enabled
+      this.isWorkingMode = true;
+      await chrome.storage.local.set({ isWorkingMode: true });
+    } else {
+      // Respect saved user preference
+      this.isWorkingMode = result.isWorkingMode;
+    }
+
+    this.globalTimerStartTime = result.globalTimerStartTime || null;
+    this.reminderInterval = 45; // Always 45 minutes
+
+    // If working mode is active, ensure alarms and timer are running
     if (this.isWorkingMode) {
-      // We don't want to reset the timer if it's already running,
-      // but we do want to ensure the alarm is active.
-      // Since we can't easily check when the *next* alarm is,
-      // we'll leave existing alarms alone if they exist.
       const alarm = await chrome.alarms.get(this.reminderAlarmName);
       if (!alarm) {
         await this.setupWorkingModeReminders();
