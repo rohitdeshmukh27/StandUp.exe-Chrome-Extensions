@@ -679,14 +679,15 @@ class ProductivityDashboard {
   updateDaysRemaining() {
     const now = new Date();
     const endOfYear = new Date(2026, 11, 31, 23, 59, 59, 999); // December 31, 2026
-    const startOfYear = new Date(2026, 0, 1); // January 1, 2026
+    const startOfYear = new Date(2026, 0, 1, 0, 0, 0, 0); // January 1, 2026
 
-    const totalDays = Math.ceil(
-      (endOfYear - startOfYear) / (1000 * 60 * 60 * 24),
-    );
+    // Calculate exact time-based percentage for precision
+    const totalTime = endOfYear - startOfYear;
+    const elapsedTime = now - startOfYear;
+    const percentageCompleted = ((elapsedTime / totalTime) * 100).toFixed(2);
+
+    // Calculate days remaining (still using rounded days for display)
     const daysRemaining = Math.ceil((endOfYear - now) / (1000 * 60 * 60 * 24));
-    const daysPassed = totalDays - daysRemaining;
-    const percentageCompleted = Math.round((daysPassed / totalDays) * 100);
 
     // Update with animation
     if (this.animatedNumbers.daysRemaining) {
