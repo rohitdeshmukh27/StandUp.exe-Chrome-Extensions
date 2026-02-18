@@ -18,8 +18,8 @@ body {
   font-weight: 500;
   background: #000000;
   color: #ffffff;
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden; /* NO SCROLL - everything fits in viewport */
   position: relative;
   cursor:
     url("cursor.png") 12 12,
@@ -27,10 +27,13 @@ body {
 }
 
 .dashboard-container {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   position: relative;
   z-index: 1;
   background: #000000;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Light Gray Grid Pattern Background */
@@ -171,43 +174,49 @@ body {
   opacity: 0.6;
 }
 
-/* New Dashboard Layout - 2 Rows, 100% Viewport */
+/* New Dashboard Layout - 2 Rows, 100% Viewport, NO SCROLL */
 .dashboard-container-new {
   height: calc(100vh - 90px);
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  gap: 20px;
-  overflow: hidden;
+  padding: 16px 20px 20px 20px; /* Extra bottom padding for hover lift */
+  gap: 16px;
+  overflow: hidden; /* Strict no-scroll */
 }
 
 .top-row {
   flex: 1;
-  min-height: 0; /* Allow shrinking */
+  min-height: 0; /* Critical: allow flex children to shrink */
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 20px;
+  gap: 16px;
 }
 
 .bottom-row {
   flex: 1;
-  min-height: 0; /* Allow shrinking */
+  min-height: 0; /* Critical: allow flex children to shrink */
   display: flex;
+  overflow: visible; /* Allow hover border to show */
 }
 
-/* Widget Base Styles - Updated */
+/* Widget Base Styles */
 .widget {
   background: #1a1a1a;
   border: 1px solid #333333;
   border-radius: 8px;
-  padding: 20px;
-  transition: all 0.2s ease;
+  padding: 16px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease; /* Smooth the hover lift */
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0; /* Critical: allow shrinking in flex/grid */
   opacity: 0;
   animation: fadeInUp 0.6s ease-out forwards;
+  will-change: transform;
 }
 
 @keyframes fadeInUp {
@@ -234,17 +243,20 @@ body {
   animation-delay: 0.4s;
 }
 
-.widget:hover {
-  border-color: #ffffff;
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .widget:hover {
+    border-color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
 }
 
 .widget-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #333333;
   flex-shrink: 0;
 }
@@ -266,34 +278,38 @@ body {
   border-radius: 2px;
 }
 
-/* Time Widget - New Layout */
+/* Time Widget */
 .time-widget-new {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .time-display-large {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
+  gap: 6px;
+  overflow: hidden;
 }
 
 .large-time-text {
-  font-size: 3rem;
+  font-size: clamp(1.4rem, 2.8vw, 3rem);
   font-weight: 300;
   color: #ffffff;
   font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
-  margin-bottom: 10px;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .large-date-text {
-  font-size: 0.9rem;
+  font-size: clamp(0.65rem, 1vw, 0.9rem);
   color: #cccccc;
-  margin-bottom: 10px;
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -302,49 +318,54 @@ body {
 .timezone-info {
   background: #333333;
   border: 1px solid #555555;
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 4px;
   display: inline-block;
   color: #ffffff;
   font-weight: 400;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
-/* Days Remaining Widget - New */
-/* Days Remaining Widget - Visual Redesign */
+/* Year Progress Widget */
 .days-remaining-widget {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
+/* Horizontal layout: circle left, stats right */
 .days-content-visual {
   flex: 1;
+  min-height: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 15px;
-  padding: 10px 0;
+  gap: 20px;
+  padding: 6px 10px;
+  overflow: hidden;
 }
 
 .circular-progress {
-  width: 140px;
-  height: 140px;
+  /* Size to fill available height, not exceed 120px */
+  height: min(100%, 150px);
+  width: auto;
+  aspect-ratio: 1;
   border-radius: 50%;
   background: conic-gradient(#ffffff 0%, #333333 0%);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
-  transition: background 1s ease-out;
   position: relative;
+  flex-shrink: 0;
 }
 
 .inner-circle {
-  width: 116px;
-  height: 116px;
+  width: 82%;
+  aspect-ratio: 1;
   background: #1a1a1a;
   border-radius: 50%;
   display: flex;
@@ -353,40 +374,44 @@ body {
   justify-content: center;
   z-index: 2;
   box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
 
 .percentage-text-big {
-  font-size: 1.8rem;
+  font-size: clamp(0.9rem, 1.8vw, 1.6rem);
   font-weight: 700;
   color: #ffffff;
   font-family: "Geom", sans-serif;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .percentage-subtext {
-  font-size: 0.7rem;
+  font-size: clamp(0.5rem, 0.8vw, 0.65rem);
   color: #888888;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-top: 4px;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
 }
 
+/* Stats panel to the right of the circle */
 .days-remaining-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
 }
 
 .days-number-medium {
-  font-size: 1.4rem;
+  font-size: clamp(1.4rem, 2.5vw, 2.2rem);
   color: #ffffff;
   font-weight: 300;
   font-family: "SF Mono", monospace;
+  line-height: 1;
 }
 
 .days-label-small {
-  font-size: 0.75rem;
+  font-size: clamp(0.6rem, 0.9vw, 0.75rem);
   color: #aaaaaa;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -396,34 +421,40 @@ body {
 .health-reminder-widget {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .health-reminder-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   text-align: center;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .reminder-status {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .timer-display {
-  font-size: 2.5rem;
+  font-size: clamp(1.4rem, 2.5vw, 2.5rem);
   font-weight: 300;
   color: #ffffff;
   font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
   letter-spacing: 0.1em;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .timer-label {
-  font-size: 0.8rem;
+  font-size: clamp(0.65rem, 0.9vw, 0.8rem);
   color: #888888;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -432,17 +463,17 @@ body {
 .health-tips {
   background: #333333;
   border: 1px solid #555555;
-  padding: 12px;
+  padding: 8px 12px;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: clamp(0.65rem, 0.9vw, 0.8rem);
   color: #cccccc;
   border-left: 3px solid #ffffff;
   line-height: 1.4;
+  flex-shrink: 0;
 }
 
 /* Rest Actions */
 .rest-actions {
-  margin-top: 16px;
   text-align: center;
 }
 
@@ -506,7 +537,7 @@ body {
   filter: none !important;
   opacity: 1 !important;
   color: #f87171 !important;
-  font-size: 1.8rem;
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
   letter-spacing: 0.15em;
   text-shadow: 0 0 20px rgba(248, 113, 113, 0.5);
 }
@@ -629,31 +660,21 @@ body {
 
 .shortcuts-grid-new {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 15px;
-  padding: 10px 10px;
-  margin: 0 10px;
-  min-height: 100px;
-  max-height: none; /* Remove fixed height constraint */
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #555555 transparent;
-}
-
-.shortcuts-grid-new::-webkit-scrollbar {
-  width: 6px;
-}
-
-.shortcuts-grid-new::-webkit-scrollbar-thumb {
-  background-color: #555555;
-  border-radius: 10px;
+  display: flex;
+  flex-direction: row; /* Single row, equal width cards */
+  flex-wrap: nowrap; /* No wrapping — cards share the space */
+  align-items: stretch;
+  gap: 12px;
+  padding: 8px;
+  margin: 0;
+  overflow: hidden; /* No scroll */
 }
 
 /* Empty state for shortcuts */
 .shortcuts-grid-new:empty::after {
   content: "Click '+ ADD' to add your first shortcut";
-  grid-column: 1 / -1;
+  width: 100%;
+  flex: 0 0 100%;
   text-align: center;
   color: #888888;
   font-size: 0.8rem;
@@ -670,23 +691,29 @@ body {
   background: #333333;
   border: 1px solid #555555;
   border-radius: 8px;
-  padding: 15px 10px;
+  padding: 12px 8px;
   text-decoration: none;
   color: #ffffff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  min-height: 80px;
+  flex: 1; /* Grow equally — 2 cards = 50/50, 4 cards = 25/25/25/25 */
+  min-width: 0; /* Allow shrinking below content size */
+  height: 100%; /* Fill the grid height */
   cursor: pointer;
   position: relative;
 }
 
-/* Simple minimalistic hover effect - just enlarge */
-.shortcut-card-new:hover {
-  transform: scale(1.05);
+/* Subtle lift hover — scale is too aggressive on wide cards */
+@media (hover: hover) {
+  .shortcut-card-new:hover {
+    transform: translateY(-3px);
+    border-color: #888888;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  }
 }
 
 .shortcut-card-new.dragging {
@@ -744,7 +771,9 @@ body {
   font-weight: 500;
   line-height: 1.2;
   max-width: 100%;
-  word-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Truncate long labels instead of wrapping */
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   position: relative;
   z-index: 2;
@@ -766,66 +795,6 @@ body {
 .shortcut-favicon:not([src])::before,
 .shortcut-favicon[src=""]::before {
   opacity: 1;
-}
-
-/* Alternative hover effects - uncomment to try different styles */
-
-/* Option 1: Tilt Effect */
-.shortcut-card-new.tilt-effect:hover {
-  transform: perspective(1000px) rotateX(10deg) rotateY(10deg) scale(1.05);
-  border-color: #ffffff;
-}
-
-/* Option 2: Glow Effect */
-.shortcut-card-new.glow-effect:hover {
-  box-shadow:
-    0 0 20px rgba(255, 255, 255, 0.4),
-    0 0 40px rgba(255, 255, 255, 0.2),
-    0 8px 25px rgba(0, 0, 0, 0.3);
-  border-color: #ffffff;
-  transform: scale(1.03);
-}
-
-/* Option 3: Slide Effect */
-.shortcut-card-new.slide-effect {
-  overflow: hidden;
-}
-
-.shortcut-card-new.slide-effect::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    45deg,
-    transparent 30%,
-    rgba(76, 175, 80, 0.1) 50%,
-    transparent 70%
-  );
-  transform: translateX(-100%);
-  transition: transform 0.6s ease;
-}
-
-.shortcut-card-new.slide-effect:hover::after {
-  transform: translateX(100%);
-}
-
-/* Option 4: Bounce Effect */
-.shortcut-card-new.bounce-effect:hover {
-  animation: cardBounce 0.6s ease;
-  border-color: #2196f3;
-}
-
-@keyframes cardBounce {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
 }
 
 .edit-btn {
@@ -1179,11 +1148,28 @@ body {
   }
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
+/* ============================================
+   RESPONSIVE DESIGN — NO SCROLL AT ANY SIZE
+   ============================================ */
+
+/* Large screens: keep 3-col top row */
+@media (max-width: 1400px) {
+  .dashboard-container-new {
+    padding: 14px 18px;
+    gap: 14px;
+  }
+}
+
+/* Medium-large: 2-col top row, time spans full width */
+@media (max-width: 1100px) {
+  .dashboard-container-new {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
   .top-row {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: auto auto;
   }
 
   .time-widget-new {
@@ -1191,89 +1177,269 @@ body {
   }
 
   .large-time-text {
-    font-size: 2.5rem;
-  }
-
-  .days-number {
-    font-size: 3rem;
+    font-size: clamp(1.4rem, 2.5vw, 2.5rem);
   }
 }
 
-@media (max-width: 768px) {
+/* Tablet landscape: 2-col top row */
+@media (max-width: 900px) {
+  .main-header {
+    padding: 0 20px;
+    height: 80px;
+  }
+
   .dashboard-container-new {
-    padding: 15px;
-    gap: 15px;
+    height: calc(100vh - 80px);
+    padding: 12px;
+    gap: 12px;
   }
 
   .top-row {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    gap: 15px;
+    grid-template-columns: 1fr 1fr;
   }
 
   .time-widget-new {
-    grid-column: span 1;
+    grid-column: span 2;
   }
 
-  .large-time-text {
-    font-size: 2rem;
-  }
-
-  .days-number {
-    font-size: 2.5rem;
-  }
-
-  .shortcuts-grid-new {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 10px;
-  }
-
-  .shortcut-card-new {
-    padding: 10px 5px;
-    min-height: 65px;
-  }
-
-  .shortcut-favicon {
-    width: 28px;
-    height: 28px;
-  }
-
-  .shortcut-label {
-    font-size: 0.7rem;
-  }
-}
-
-@media (max-width: 600px) {
-  .shortcuts-grid-new {
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-  }
-  .shortcut-card-new {
-    min-height: 60px;
-    padding: 8px 4px;
-  }
-}
-
-@media (max-width: 480px) {
-  .main-header {
-    padding: 10px 15px;
-    height: 50px;
-  }
-
-  .dashboard-container-new {
-    height: calc(100vh - 50px);
-    padding: 10px;
+  .quote-container-main {
+    max-width: 100%;
   }
 
   .widget {
-    padding: 15px;
+    padding: 12px;
   }
 
   .large-time-text {
-    font-size: 1.8rem;
+    font-size: clamp(1.2rem, 2.2vw, 2.2rem);
   }
 
-  .days-number {
-    font-size: 2rem;
+  .timer-display {
+    font-size: clamp(1.2rem, 2vw, 2rem);
+  }
+
+  .shortcut-card-new {
+    flex-basis: 90px;
+    max-width: 180px;
+  }
+}
+
+/* Tablet portrait: stack top row */
+@media (max-width: 768px) {
+  .main-header {
+    padding: 0 16px;
+    height: 70px;
+  }
+
+  .dashboard-container-new {
+    height: calc(100vh - 70px);
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .top-row {
+    display: flex;
+    flex-direction: row; /* Keep side by side on tablet portrait */
+    gap: 10px;
+  }
+
+  .time-widget-new,
+  .days-remaining-widget,
+  .health-reminder-widget {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .widget {
+    padding: 10px;
+  }
+
+  .widget-header {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+  }
+
+  .widget-header h2 {
+    font-size: 0.75rem;
+  }
+
+  .large-time-text {
+    font-size: clamp(1rem, 4vw, 1.8rem);
+  }
+
+  .large-date-text {
+    font-size: 0.75rem;
+    margin-bottom: 6px;
+  }
+
+  .timezone-info {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+  }
+
+  /* Compact days widget */
+  .days-content-visual {
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .days-number-medium {
+    font-size: 1rem;
+  }
+
+  .days-label-small {
+    font-size: 0.65rem;
+  }
+
+  .percentage-text-big {
+    font-size: 1.2rem;
+  }
+
+  .percentage-subtext {
+    font-size: 0.6rem;
+  }
+
+  /* Compact health widget */
+  .timer-display {
+    font-size: clamp(1rem, 3.5vw, 1.6rem);
+  }
+
+  .timer-label {
+    font-size: 0.65rem;
+  }
+
+  .health-tips {
+    font-size: 0.7rem;
+    padding: 8px;
+  }
+
+  .reminder-status {
+    margin-bottom: 10px;
+    gap: 6px;
+  }
+
+  /* Shortcuts */
+  .shortcuts-grid-new {
+    gap: 8px;
+    padding: 6px;
+  }
+
+  .shortcut-card-new {
+    flex-basis: 80px;
+    max-width: 160px;
+    padding: 8px 6px;
+    gap: 6px;
+  }
+
+  .shortcut-favicon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .shortcut-label {
+    font-size: 0.65rem;
+  }
+
+  /* Header */
+  .current-status {
+    display: none;
+  }
+
+  .header-left {
+    flex: 0;
+  }
+
+  .header-center {
+    flex: 1;
+  }
+}
+
+/* Mobile: very compact */
+@media (max-width: 480px) {
+  .main-header {
+    padding: 0 12px;
+    height: 56px;
+  }
+
+  .dashboard-container-new {
+    height: calc(100vh - 56px);
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .top-row {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .widget {
+    padding: 8px;
+  }
+
+  .widget-header {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+  }
+
+  .widget-header h2 {
+    font-size: 0.65rem;
+  }
+
+  .large-time-text {
+    font-size: clamp(0.9rem, 5vw, 1.4rem);
+  }
+
+  .large-date-text {
+    font-size: 0.65rem;
+    margin-bottom: 4px;
+  }
+
+  .timezone-info {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+  }
+
+  .timer-display {
+    font-size: clamp(0.9rem, 4vw, 1.4rem);
+  }
+
+  .health-tips {
+    font-size: 0.65rem;
+    padding: 6px;
+  }
+
+  .reminder-status {
+    margin-bottom: 6px;
+    gap: 4px;
+  }
+
+  .shortcuts-grid-new {
+    gap: 6px;
+    padding: 4px;
+  }
+
+  .shortcut-card-new {
+    flex-basis: 70px;
+    max-width: 140px;
+    padding: 6px 4px;
+    gap: 4px;
+  }
+
+  .shortcut-favicon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .shortcut-label {
+    font-size: 0.6rem;
+  }
+
+  .quote-container-main {
+    padding: 6px 12px;
+  }
+
+  #daily-quote-text {
+    font-size: 0.75rem;
   }
 }
 
@@ -1422,10 +1588,12 @@ a:hover,
   font-family: inherit;
 }
 
-/* Static characters (colons, spaces) */
+/* Static characters (colons, AM/PM, spaces) */
 .static-char {
   display: inline-block;
   width: auto;
+  vertical-align: top; /* Match .number-digit so AM/PM stays on the same line */
+  line-height: 1.2em; /* Match digit-item line height */
 }
 
 /* Context Menu Styles */
